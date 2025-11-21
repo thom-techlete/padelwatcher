@@ -19,4 +19,7 @@ export const searchApi = {
 
   deleteOrder: (id: number) =>
     apiClient.delete<void>(`/api/search-orders/${id}`),
+
+  executeOrder: (id: number) =>
+    apiClient.post(`/api/search-orders/${id}/execute`),
 }

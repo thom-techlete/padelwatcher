@@ -3,7 +3,8 @@ export interface User {
   email: string
   username: string
   is_admin: boolean
-  is_approved: boolean
+  approved: boolean
+  approved_at: string
   active: boolean
   created_at: string
 }

@@ -54,10 +54,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const registerMutation = useMutation({
     mutationFn: authApi.register,
-    onSuccess: (data) => {
-      tokenStorage.set(data.token)
-      // Invalidate currentUser query to trigger refetch with new token
-      queryClient.invalidateQueries({ queryKey: ['currentUser'] })
+    onSuccess: () => {
+      // Registration successful - no token to set since user needs approval
+      // The RegisterPage will handle navigation to pending approval
     },
   })
 
@@ -70,10 +69,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = () => {
+    console.log('[AuthContext] Logout called')
     tokenStorage.remove()
     queryClient.removeQueries({ queryKey: ['currentUser'] })
-    queryClient.clear()
-    navigate({ to: '/login' })
+    // queryClient.clear()  // Removed to avoid clearing router state
+    console.log('[AuthContext] Navigating to /')
+    navigate({ to: '/', replace: true })
   }
 
   return (

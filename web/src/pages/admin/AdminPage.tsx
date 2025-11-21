@@ -113,7 +113,7 @@ export function AdminPage() {
   }
 
   const pendingCount = pendingUsers?.length || 0
-  const approvedCount = users?.filter(u => u.is_approved).length || 0
+  const approvedCount = users?.filter(u => u.approved).length || 0
   const totalUsers = users?.length || 0
 
   return (
@@ -246,7 +246,7 @@ export function AdminPage() {
                       Admin
                     </span>
                   )}
-                  {user.is_approved ? (
+                  {user.approved ? (
                     <span className="px-2 py-1 text-xs font-medium bg-green-500/20 text-green-300 rounded">
                       Approved
                     </span>
@@ -255,7 +255,7 @@ export function AdminPage() {
                       Pending
                     </span>
                   )}
-                  {user.is_approved && (
+                  {user.approved && (
                     user.active ? (
                       <span className="px-2 py-1 text-xs font-medium bg-accent-500/20 text-accent-300 rounded">
                         Active
@@ -268,7 +268,7 @@ export function AdminPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  {user.is_approved && (
+                  {user.approved && (
                     <>
                       {user.active ? (
                         <Button

@@ -10,12 +10,17 @@ export interface UpdatePasswordRequest {
   new_password: string
 }
 
+export interface RegisterResponse {
+  message: string
+  user_id: string
+}
+
 export const authApi = {
   login: (credentials: LoginRequest) =>
     apiClient.post<AuthResponse>('/api/auth/login', credentials),
 
   register: (data: RegisterRequest) =>
-    apiClient.post<AuthResponse>('/api/auth/register', data),
+    apiClient.post<RegisterResponse>('/api/auth/register', data),
 
   getCurrentUser: () =>
     apiClient.get<User>('/api/auth/me'),

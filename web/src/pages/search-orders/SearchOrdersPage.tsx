@@ -1,13 +1,17 @@
 import { useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { searchApi, locationApi } from '@/lib/api'
 import { Card, CardHeader, CardTitle, CardContent, Button, Spinner, Alert, Badge } from '@/components/ui'
-import { ListOrdered, Plus, Trash2, ToggleLeft, ToggleRight, Calendar, Clock } from 'lucide-react'
+import { ListOrdered, Plus, Trash2, ToggleLeft, ToggleRight, Calendar, Clock, MapPin, Timer, Play, Search } from 'lucide-react'
 import type { SearchOrder, Location } from '@/types'
+import { format, parseISO } from 'date-fns'
+import { useAuth } from '@/hooks/useAuth'
 
 export function SearchOrdersPage() {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const navigate = useNavigate()
 
   const { data: orders, isLoading, error } = useQuery({
     queryKey: ['search-orders'],
@@ -40,6 +44,13 @@ export function SearchOrdersPage() {
     },
   })
 
+  const executeOrderMutation = useMutation({
+    mutationFn: searchApi.executeOrder,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['search-orders'] })
+    },
+  })
+
   const handleToggleActive = (order: SearchOrder) => {
     toggleOrderMutation.mutate({
       id: order.id,
@@ -50,6 +61,62 @@ export function SearchOrdersPage() {
   const handleDeleteOrder = (id: number) => {
     if (confirm('Are you sure you want to delete this search order?')) {
       deleteOrderMutation.mutate(id)
+    }
+  }
+
+  const handleExecuteOrder = (id: number) => {
+    if (confirm('Are you sure you want to execute this search order now?')) {
+      executeOrderMutation.mutate(id)
+    }
+  }
+
+  const handleSearchOrder = (order: SearchOrder) => {
+    // Format date from YYYY-MM-DD to DD/MM/YYYY
+    const [year, month, day] = order.date.split('-')
+    const formattedDate = `${day}/${month}/${year}`
+    
+    // Navigate to search results page with order parameters
+    const searchParams = new URLSearchParams({
+      date: formattedDate,
+      start_time: order.start_time,
+      end_time: order.end_time,
+      duration_minutes: order.duration_minutes.toString(),
+      court_type: order.court_type,
+      court_config: order.court_config,
+      location_ids: order.location_ids.join(','),
+      live_search: 'true'
+    })
+    
+    navigate({
+      to: '/search-results',
+      search: Object.fromEntries(searchParams)
+    })
+  }
+
+  const getLocationNames = (locationIds: number[]) => {
+    const names = locationIds
+      .map(id => locationsMap.get(id)?.name)
+      .filter(Boolean)
+    
+    if (names.length === 0) return 'Unknown'
+    if (names.length === 1) return names[0]
+    if (names.length === 2) return names.join(' & ')
+    return `${names[0]} & ${names.length - 1} more`
+  }
+
+  const getCourtTypeLabel = (courtType: string) => {
+    switch (courtType) {
+      case 'indoor': return 'Indoor Only'
+      case 'outdoor': return 'Outdoor Only'
+      default: return 'All Courts'
+    }
+  }
+
+  const getCourtConfigLabel = (courtConfig: string) => {
+    switch (courtConfig) {
+      case 'single': return 'Single'
+      case 'double': return 'Double'
+      default: return 'All'
     }
   }
 
@@ -79,7 +146,7 @@ export function SearchOrdersPage() {
         <div>
           <h1 className="text-3xl font-bold text-white">Search Orders</h1>
           <p className="text-white/80 mt-2">
-            Manage your automated court availability monitoring
+            Automated court availability monitoring (checks every 15 minutes)
           </p>
         </div>
         <Link to="/orders/new">
@@ -109,7 +176,7 @@ export function SearchOrdersPage() {
       ) : (
         <div className="space-y-4">
           {orders.map((order: SearchOrder) => {
-            const location = locationsMap.get(order.location_id)
+            const locationNames = getLocationNames(order.location_ids)
             return (
               <Card key={order.id} className="hover:shadow-md transition-shadow">
                 <CardHeader>
@@ -122,22 +189,32 @@ export function SearchOrdersPage() {
                       <Badge variant={order.is_active ? 'default' : 'secondary'}>
                         {order.is_active ? 'Active' : 'Inactive'}
                       </Badge>
+                      {order.last_check_at && (
+                        <Badge variant="outline" className="text-xs">
+                          Last check: {format(parseISO(order.last_check_at), 'HH:mm')}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     <div>
-                      <p className="text-sm font-medium text-white">Location</p>
-                      <p className="text-sm text-white">{location?.name || 'Unknown'}</p>
+                      <p className="text-sm font-medium text-white flex items-center">
+                        <MapPin className="mr-1 h-4 w-4" />
+                        Locations
+                      </p>
+                      <p className="text-sm text-white" title={order.location_ids.map(id => locationsMap.get(id)?.name).join(', ')}>
+                        {locationNames}
+                      </p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-white flex items-center">
                         <Calendar className="mr-1 h-4 w-4" />
-                        Date Range
+                        Date
                       </p>
                       <p className="text-sm text-white">
-                        {new Date(order.start_date).toLocaleDateString()} - {new Date(order.end_date).toLocaleDateString()}
+                        {format(parseISO(order.date), 'MMM d, yyyy')}
                       </p>
                     </div>
                     <div>
@@ -146,16 +223,43 @@ export function SearchOrdersPage() {
                         Time Window
                       </p>
                       <p className="text-sm text-white">
-                        {order.preferred_start_time} - {order.preferred_end_time}
+                        {order.start_time} - {order.end_time}
                       </p>
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-white">Search Window</p>
-                      <p className="text-sm text-white">{order.search_window_minutes} minutes</p>
+                      <p className="text-sm font-medium text-white flex items-center">
+                        <Timer className="mr-1 h-4 w-4" />
+                        Duration
+                      </p>
+                      <p className="text-sm text-white">{order.duration_minutes} minutes</p>
                     </div>
                   </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Badge variant="outline">{getCourtTypeLabel(order.court_type)}</Badge>
+                    <Badge variant="outline">{getCourtConfigLabel(order.court_config)}</Badge>
+                  </div>
                   <div className="mt-4 flex space-x-2">
-                    {/* View Details link removed - detail page not implemented */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSearchOrder(order)}
+                      className="text-green-600 hover:text-green-700"
+                    >
+                      <Search className="mr-2 h-4 w-4" />
+                      Search Now
+                    </Button>
+                    {user?.is_admin && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleExecuteOrder(order.id)}
+                        disabled={executeOrderMutation.isPending}
+                        className="text-blue-600 hover:text-blue-700"
+                      >
+                        <Play className="mr-2 h-4 w-4" />
+                        Execute Now
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"

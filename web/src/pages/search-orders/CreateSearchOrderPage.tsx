@@ -1,30 +1,39 @@
-import { useForm } from 'react-hook-form'
+import { useMemo } from 'react'
+import { useForm, Controller } from 'react-hook-form'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { searchApi, locationApi } from '@/lib/api'
-import { Card, CardHeader, CardTitle, CardContent, Button, Input, Label, Select, Spinner, Alert } from '@/components/ui'
+import { Card, CardHeader, CardTitle, CardContent, Button, Label, MultiSelect, Select, Spinner, Alert, DatePicker, TimePicker } from '@/components/ui'
 import { ArrowLeft, Save } from 'lucide-react'
+import { format } from 'date-fns'
 
 interface CreateSearchOrderForm {
-  location_id: number
-  start_date: string
-  end_date: string
-  preferred_start_time: string
-  preferred_end_time: string
-  search_window_minutes: number
+  location_ids: number[]
+  date: Date | null
+  start_time: string
+  end_time: string
+  duration_minutes: number
+  court_type: 'all' | 'indoor' | 'outdoor'
+  court_config: 'all' | 'single' | 'double'
 }
 
 export function CreateSearchOrderPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const { register, handleSubmit, formState: { errors }, watch } = useForm<CreateSearchOrderForm>({
+  const { control, handleSubmit, formState: { errors }, watch } = useForm<CreateSearchOrderForm>({
     defaultValues: {
-      search_window_minutes: 60,
+      location_ids: [],
+      date: new Date(),
+      start_time: '09:00',
+      end_time: '21:00',
+      duration_minutes: 90,
+      court_type: 'all',
+      court_config: 'double',
     },
   })
 
-  const { data: locations, isLoading: locationsLoading } = useQuery({
+  const { data: locations = [], isLoading: locationsLoading } = useQuery({
     queryKey: ['locations'],
     queryFn: locationApi.getAll,
   })
@@ -38,13 +47,28 @@ export function CreateSearchOrderPage() {
   })
 
   const onSubmit = (data: CreateSearchOrderForm) => {
+    if (!data.date) return
+
     createOrderMutation.mutate({
-      ...data,
+      location_ids: data.location_ids,
+      date: format(data.date, 'yyyy-MM-dd'),
+      start_time: data.start_time,
+      end_time: data.end_time,
+      duration_minutes: data.duration_minutes,
+      court_type: data.court_type,
+      court_config: data.court_config,
       is_active: true,
     })
   }
 
-  const startDate = watch('start_date')
+  const locationOptions = useMemo(
+    () =>
+      locations.map(location => ({
+        value: location.id,
+        label: location.name,
+      })),
+    [locations]
+  )
 
   if (locationsLoading) {
     return (
@@ -79,115 +103,165 @@ export function CreateSearchOrderPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            {/* Location Selection */}
             <div>
-              <Label htmlFor="location_id">Location</Label>
-              <Select
-                id="location_id"
-                {...register('location_id', { required: 'Location is required' })}
-                options={
-                  locations?.map(location => ({
-                    value: location.id,
-                    label: location.name,
-                  })) || []
-                }
-                className={errors.location_id ? 'border-red-500' : ''}
+              <Label>Locations</Label>
+              <Controller
+                name="location_ids"
+                control={control}
+                rules={{
+                  validate: (value) =>
+                    value.length > 0 || 'Select at least one location',
+                }}
+                render={({ field }) => (
+                  <MultiSelect
+                    options={locationOptions}
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="Select locations to monitor..."
+                  />
+                )}
               />
-              {errors.location_id && (
-                <p className="text-sm text-red-600 mt-1">{errors.location_id.message}</p>
+              {errors.location_ids && (
+                <p className="text-sm text-red-500 mt-1">
+                  {errors.location_ids.message}
+                </p>
               )}
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Label htmlFor="start_date">Start Date</Label>
-                <Input
-                  id="start_date"
-                  type="date"
-                  {...register('start_date', { required: 'Start date is required' })}
-                  className={errors.start_date ? 'border-red-500' : ''}
-                />
-                {errors.start_date && (
-                  <p className="text-sm text-red-600 mt-1">{errors.start_date.message}</p>
+            {/* Date Selection */}
+            <div>
+              <Label>Date</Label>
+              <Controller
+                name="date"
+                control={control}
+                rules={{ required: 'Date is required' }}
+                render={({ field }) => (
+                  <DatePicker
+                    value={field.value || undefined}
+                    onChange={field.onChange}
+                  />
                 )}
-              </div>
-              <div>
-                <Label htmlFor="end_date">End Date</Label>
-                <Input
-                  id="end_date"
-                  type="date"
-                  {...register('end_date', {
-                    required: 'End date is required',
-                    validate: (value) => {
-                      if (startDate && value < startDate) {
-                        return 'End date must be after start date'
-                      }
-                      return true
-                    }
-                  })}
-                  className={errors.end_date ? 'border-red-500' : ''}
-                />
-                {errors.end_date && (
-                  <p className="text-sm text-red-600 mt-1">{errors.end_date.message}</p>
-                )}
-              </div>
+              />
+              {errors.date && (
+                <p className="text-sm text-red-500 mt-1">
+                  {errors.date.message}
+                </p>
+              )}
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            {/* Time Range */}
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="preferred_start_time">Preferred Start Time</Label>
-                <Input
-                  id="preferred_start_time"
-                  type="time"
-                  {...register('preferred_start_time', { required: 'Start time is required' })}
-                  className={errors.preferred_start_time ? 'border-red-500' : ''}
+                <Label>Start Time</Label>
+                <Controller
+                  name="start_time"
+                  control={control}
+                  rules={{ required: 'Start time is required' }}
+                  render={({ field }) => (
+                    <TimePicker
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                  )}
                 />
-                {errors.preferred_start_time && (
-                  <p className="text-sm text-red-600 mt-1">{errors.preferred_start_time.message}</p>
+                {errors.start_time && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {errors.start_time.message}
+                  </p>
                 )}
               </div>
               <div>
-                <Label htmlFor="preferred_end_time">Preferred End Time</Label>
-                <Input
-                  id="preferred_end_time"
-                  type="time"
-                  {...register('preferred_end_time', {
+                <Label>End Time</Label>
+                <Controller
+                  name="end_time"
+                  control={control}
+                  rules={{
                     required: 'End time is required',
                     validate: (value) => {
-                      const startTime = watch('preferred_start_time')
-                      if (startTime && value <= startTime) {
-                        return 'End time must be after start time'
-                      }
-                      return true
-                    }
-                  })}
-                  className={errors.preferred_end_time ? 'border-red-500' : ''}
+                      const startTime = watch('start_time')
+                      return value > startTime || 'End time must be after start time'
+                    },
+                  }}
+                  render={({ field }) => (
+                    <TimePicker
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                  )}
                 />
-                {errors.preferred_end_time && (
-                  <p className="text-sm text-red-600 mt-1">{errors.preferred_end_time.message}</p>
+                {errors.end_time && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {errors.end_time.message}
+                  </p>
                 )}
               </div>
             </div>
 
+            {/* Duration Selection */}
             <div>
-              <Label htmlFor="search_window_minutes">Search Window (minutes)</Label>
-              <Input
-                id="search_window_minutes"
-                type="number"
-                min="15"
-                max="480"
-                {...register('search_window_minutes', {
-                  required: 'Search window is required',
-                  min: { value: 15, message: 'Minimum 15 minutes' },
-                  max: { value: 480, message: 'Maximum 8 hours' }
-                })}
-                className={errors.search_window_minutes ? 'border-red-500' : ''}
+              <Label>Court Duration</Label>
+              <Controller
+                name="duration_minutes"
+                control={control}
+                rules={{ required: 'Duration is required' }}
+                render={({ field }) => (
+                  <Select
+                    options={[
+                      { value: '60', label: '60 minutes' },
+                      { value: '90', label: '90 minutes' },
+                      { value: '120', label: '120 minutes' },
+                    ]}
+                    value={String(field.value)}
+                    onChange={(e) => field.onChange(parseInt(e.target.value))}
+                  />
+                )}
               />
-              <p className="text-sm text-white/70 mt-1">
-                How much time before/after your preferred time to search for availability
-              </p>
-              {errors.search_window_minutes && (
-                <p className="text-sm text-red-600 mt-1">{errors.search_window_minutes.message}</p>
+              {errors.duration_minutes && (
+                <p className="text-sm text-red-500 mt-1">
+                  {errors.duration_minutes.message}
+                </p>
               )}
+            </div>
+
+            {/* Court Type Filter */}
+            <div>
+              <Label>Court Type</Label>
+              <Controller
+                name="court_type"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    options={[
+                      { value: 'all', label: 'All Courts' },
+                      { value: 'indoor', label: 'Indoor Only' },
+                      { value: 'outdoor', label: 'Outdoor Only' },
+                    ]}
+                    value={field.value}
+                    onChange={(e) => field.onChange(e.target.value)}
+                  />
+                )}
+              />
+            </div>
+
+            {/* Court Configuration Filter */}
+            <div>
+              <Label>Court Configuration</Label>
+              <Controller
+                name="court_config"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    options={[
+                      { value: 'all', label: 'All Configurations' },
+                      { value: 'single', label: 'Single Courts' },
+                      { value: 'double', label: 'Double Courts' },
+                    ]}
+                    value={field.value}
+                    onChange={(e) => field.onChange(e.target.value)}
+                  />
+                )}
+              />
             </div>
 
             {createOrderMutation.isError && (

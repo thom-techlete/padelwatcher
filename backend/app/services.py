@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.models import Base, Provider, Location, Court, Availability, InternalAvailabilityDTO, SearchOrder, SearchOrderNotification, User, SearchRequest
 from app.config import SQLALCHEMY_DATABASE_URI
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 engine = create_engine(SQLALCHEMY_DATABASE_URI)
 Session = sessionmaker(bind=engine)
@@ -367,7 +367,7 @@ class AvailabilityService:
         ).first()
         if notification:
             notification.notified = True
-            notification.notified_at = datetime.utcnow()
+            notification.notified_at = datetime.now(timezone.utc)
             self.session.commit()
             return notification
         return None
@@ -413,7 +413,7 @@ class AvailabilityService:
                 existing_request.location_ids = json.dumps(location_ids)
                 existing_request.live_search = live_search
                 existing_request.slots_found = slots_found
-                existing_request.performed_at = datetime.utcnow()  # Update timestamp
+                existing_request.performed_at = datetime.now(timezone.utc)  # Update timestamp
                 self.session.commit()
                 return existing_request
             
@@ -423,7 +423,7 @@ class AvailabilityService:
     def get_recent_live_search(self, search_hash, max_age_minutes=15):
         """Check if there's a recent live search with the same parameters"""
         from datetime import timedelta
-        cutoff_time = datetime.utcnow() - timedelta(minutes=max_age_minutes)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=max_age_minutes)
         
         recent_search = self.session.query(SearchRequest).filter(
             SearchRequest.search_hash == search_hash,
@@ -453,7 +453,7 @@ class AvailabilityService:
     def clear_search_cache(self, older_than_minutes=None):
         """Clear search request cache. If older_than_minutes is specified, only clear records older than that."""
         if older_than_minutes is not None:
-            cutoff_time = datetime.utcnow() - timedelta(minutes=older_than_minutes)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=older_than_minutes)
             deleted_count = self.session.query(SearchRequest).filter(
                 SearchRequest.performed_at < cutoff_time
             ).delete()
@@ -473,7 +473,7 @@ class AvailabilityService:
             user_id=user_id,
             approved=False,  # New users need approval
             is_admin=is_admin,
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc)
         )
         self.session.add(user)
         self.session.commit()
@@ -493,10 +493,10 @@ class AvailabilityService:
 
     def approve_user(self, user_id, approved_by_user_id):
         """Approve a user account"""
-        user = self.get_user_by_id(user_id)
+        user = self.get_user_by_id_numeric(user_id)
         if user:
             user.approved = True
-            user.approved_at = datetime.utcnow()
+            user.approved_at = datetime.now(timezone.utc)
             user.approved_by = approved_by_user_id
             self.session.commit()
             return user
@@ -504,7 +504,7 @@ class AvailabilityService:
 
     def reject_user(self, user_id):
         """Reject a user account (delete it)"""
-        user = self.get_user_by_id(user_id)
+        user = self.get_user_by_id_numeric(user_id)
         if user:
             self.session.delete(user)
             self.session.commit()
@@ -525,7 +525,7 @@ class AvailabilityService:
 
     def activate_user(self, user_id):
         """Activate a user account"""
-        user = self.get_user_by_id(user_id)
+        user = self.get_user_by_id_numeric(user_id)
         if user:
             user.active = True
             self.session.commit()

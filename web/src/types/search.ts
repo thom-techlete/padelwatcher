@@ -1,15 +1,17 @@
 export interface SearchOrder {
   id: number
-  user_id: number
-  location_id: number
-  start_date: string
-  end_date: string
-  preferred_start_time: string
-  preferred_end_time: string
-  search_window_minutes: number
+  user_id: string
+  location_ids: number[]
+  date: string
+  start_time: string
+  end_time: string
+  duration_minutes: number
+  court_type: 'all' | 'indoor' | 'outdoor'
+  court_config: 'all' | 'single' | 'double'
   is_active: boolean
   created_at: string
-  updated_at: string
+  updated_at?: string
+  last_check_at?: string
 }
 
 export interface SearchOrderNotification {

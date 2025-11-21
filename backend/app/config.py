@@ -28,3 +28,11 @@ JWT_EXPIRATION_HOURS = int(os.environ.get('JWT_EXPIRATION_HOURS', 24))
 DEBUG = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
 HOST = os.environ.get('FLASK_HOST', '0.0.0.0')
 PORT = int(os.environ.get('FLASK_PORT', 5000))
+
+# Email configuration (Gmail SMTP)
+GMAIL_SMTP_SERVER = os.environ.get('GMAIL_SMTP_SERVER', 'smtp.gmail.com')
+GMAIL_SMTP_PORT = int(os.environ.get('GMAIL_SMTP_PORT', 587))
+GMAIL_AUTH_CODE = os.environ.get('GMAIL_AUTH_CODE', '')
+GMAIL_SENDER_EMAIL = os.environ.get('GMAIL_SENDER_EMAIL', '')
+GMAIL_SENDER_EMAIL_NAME = os.environ.get('GMAIL_SENDER_EMAIL_NAME', 'Padel Watcher')
+FRONTEND_BASE_URL = os.environ.get('FRONTEND_BASE_URL', 'http://127.0.0.1:5173')
