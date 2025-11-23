@@ -11,7 +11,7 @@ echo "Applying database migrations..."
 alembic upgrade head
 
 echo "Checking for admin user..."
-if ! python -c "from app.services import AvailabilityService; service = AvailabilityService(); admin = service.get_user_by_email('admin@padelwatcher.com'); exit(0 if admin else 1)"; then
+if ! python -c "from app.models import User; from app.services import AvailabilityService; service = AvailabilityService(); admin_exists = service.session.query(User).filter(User.is_admin == True).first() is not None; exit(0 if admin_exists else 1)"; then
     echo "No admin user found, creating default admin..."
     python scripts/create_admin.py
 else

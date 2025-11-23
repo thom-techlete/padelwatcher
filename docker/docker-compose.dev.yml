@@ -5,7 +5,7 @@ services:
     container_name: padelwatcher-db
     restart: unless-stopped
     env_file:
-      - ../.env
+      - ../.env.dev
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backups:/backups
@@ -19,15 +19,11 @@ services:
 
   # Backend API (includes frontend dist files)
   backend:
-    build:
-      context: ..
-      dockerfile: Dockerfile
-      args:
-        VITE_API_BASE_URL: http://localhost:5000
+    image: padelwatcher:local
     container_name: padelwatcher-web
     restart: unless-stopped
     env_file:
-      - ../.env
+      - ../.env.dev
     volumes:
       - backend_data:/app/data
       - frontend_dist:/app/frontend_dist
