@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 
+echo "Updating frontend files..."
+# Clean up existing files in the volume and copy new ones from the build
+# Use || true to ignore error if directory is empty
+rm -rf /app/frontend_dist/* || true
+cp -r /app/frontend_build/. /app/frontend_dist/
+
 echo "Applying database migrations..."
 alembic upgrade head
 

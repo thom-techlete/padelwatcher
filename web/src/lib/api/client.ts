@@ -6,7 +6,7 @@ export class ApiClient {
   private baseUrl: string
 
   constructor(baseUrl: string = config.apiUrl) {
-    this.baseUrl = baseUrl
+    this.baseUrl = (baseUrl ?? '').toString()
   }
 
   private getHeaders(): HeadersInit {
