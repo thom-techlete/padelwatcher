@@ -43,6 +43,7 @@ RUN pip install --no-cache-dir -r requirements.txt && \
 COPY --chown=appuser:appuser backend/app ./app
 COPY --chown=appuser:appuser backend/alembic ./alembic
 COPY --chown=appuser:appuser backend/alembic.ini .
+COPY --chown=appuser:appuser backend/scripts ./scripts
 COPY --chown=appuser:appuser backend/entrypoint.sh .
 
 # Copy built frontend to frontend_dist directory
