@@ -119,14 +119,13 @@ jobs:
             echo "🚀 Starting deployment for padelwatcher..."
             
             # Navigate to project directory
-            cd /home/padelwatcher
+            cd /home/padelwatcher/docker
             
             # Pull latest code
             git checkout main
             git fetch origin --prune
             git pull --ff-only
             
-            cd docker
             docker compose pull
             docker compose down --remove-orphans
             docker compose up -d
