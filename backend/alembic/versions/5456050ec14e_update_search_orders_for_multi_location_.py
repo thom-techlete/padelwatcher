@@ -22,7 +22,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade schema - recreate search_orders table with new structure."""
     # PostgreSQL-specific: Drop old table
-    op.drop_table("search_orders")
+    op.drop_table("search_orders", if_exists=True)
 
     # Create new table with correct structure
     op.create_table(
@@ -46,7 +46,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema - restore old search_orders structure."""
     # PostgreSQL-specific: Drop new table
-    op.drop_table("search_orders")
+    op.drop_table("search_orders", if_exists=True)
 
     # Recreate old table structure
     op.create_table(
