@@ -19,7 +19,11 @@ services:
 
   # Backend API (includes frontend dist files)
   backend:
-    image: padelwatcher:local
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:5000
     container_name: padelwatcher-web
     restart: unless-stopped
     env_file:
