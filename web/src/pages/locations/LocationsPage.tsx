@@ -224,12 +224,12 @@ export function LocationsPage() {
                                 <span className="text-sm text-white">{court.name}</span>
                               </div>
                               <div className="flex gap-1">
-                                {court.is_indoor && (
+                                {court.indoor && (
                                   <span className="px-1.5 py-0.5 text-xs bg-blue-500/20 text-blue-300 rounded">
                                     Indoor
                                   </span>
                                 )}
-                                {court.is_double && (
+                                {court.double && (
                                   <span className="px-1.5 py-0.5 text-xs bg-green-500/20 text-green-300 rounded">
                                     Double
                                   </span>

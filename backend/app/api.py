@@ -267,6 +267,16 @@ def health():
     return jsonify({'status': 'healthy', 'timestamp': datetime.now(timezone.utc).isoformat()}), 200
 
 
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'error': 'Not found'}), 404
+
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({'error': 'Internal server error'}), 500
+
+
 if __name__ == '__main__':
     # Development server
     app.run(debug=DEBUG, host=HOST, port=PORT)

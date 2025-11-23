@@ -8,9 +8,12 @@ A comprehensive padel court availability tracking and notification system. Searc
 - 🔍 **Time Range Search**: Find courts available within flexible time windows
 - 🔔 **Search Orders**: Set up automated searches with notifications
 - 🏠 **Indoor/Outdoor Filtering**: Search by court type preferences
-- 🔐 **Secure API**: JWT-based authentication
-- 📊 **Data Persistence**: SQLite database with migrations
+- 🔐 **Secure API**: JWT-based authentication with user management
+- 📊 **Data Persistence**: PostgreSQL database with migrations
 - 🌐 **REST API**: Clean, RESTful API design
+- 📧 **Email Notifications**: Automated alerts when courts are found
+- 🐳 **Docker Ready**: Production-ready Docker configuration
+- 🚀 **Production Ready**: Complete deployment infrastructure
 
 ## Project Structure
 
@@ -244,20 +247,110 @@ CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "app.api:app"]
 - Change the `SECRET_KEY` to a strong random value
 - Use environment variables for sensitive data
 - Enable HTTPS
-- Implement rate limiting
-- Use a production database (PostgreSQL recommended)
-- Store users in a proper database (currently in-memory for MVP)
-- Add request validation and sanitization
-- Implement proper logging and monitoring
+## 🚀 Production Deployment
+
+### Docker Deployment (Recommended)
+
+The easiest way to deploy Padel Watcher is using Docker:
+
+1. **Clone and Configure**
+   ```bash
+   git clone https://github.com/thom-techlete/padelwatcher.git
+   cd padelwatcher
+   cp .env.example .env
+   # Edit .env with your production values
+   ```
+
+2. **Deploy**
+   ```bash
+   ./scripts/deploy.sh
+   ```
+
+3. **Create Admin User**
+   ```bash
+   docker-compose exec backend python scripts/create_admin.py
+   ```
+
+**📚 Complete deployment guide**: See [DEPLOYMENT.md](DEPLOYMENT.md)
+
+**✅ Deployment checklist**: See [PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md)
+
+**⚡ Quick reference**: See [QUICK_REFERENCE.md](QUICK_REFERENCE.md)
+
+### What's Included
+
+- ✅ PostgreSQL database with automated backups
+- ✅ Production-optimized Flask backend with Gunicorn
+- ✅ React frontend with Nginx
+- ✅ Nginx reverse proxy with SSL/TLS support
+- ✅ Docker Compose orchestration
+- ✅ Health checks and monitoring
+- ✅ Security hardening
+- ✅ Automated deployment scripts
+
+## Quick Start
+
+### Development Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/thom-techlete/padelwatcher.git
+   cd padelwatcher
+   ```
+
+2. **Backend Setup**
+   ```bash
+   cd backend
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   alembic upgrade head
+   python -m app.api
+   ```
+
+3. **Frontend Setup**
+   ```bash
+   cd web
+   npm install
+   npm run dev
+   ```
 
 ## Technology Stack
 
-- **Backend**: Flask, SQLAlchemy, Alembic
-- **Database**: SQLite (development), PostgreSQL (recommended for production)
+- **Backend**: Flask, SQLAlchemy, Alembic, Gunicorn
+- **Database**: PostgreSQL (production), SQLite (development)
 - **Authentication**: JWT (PyJWT)
 - **API**: RESTful with CORS support
+- **Frontend**: React, TypeScript, TanStack Router, TanStack Query
+- **Styling**: Tailwind CSS
 - **Data Fetching**: httpx, BeautifulSoup
-- **Scheduling**: APScheduler (for periodic tasks)
+- **Scheduling**: APScheduler (background tasks)
+- **Email**: Gmail SMTP
+- **Deployment**: Docker, Docker Compose, Nginx
+
+## Security
+
+This project implements security best practices:
+- JWT authentication
+- Password hashing (Werkzeug/PBKDF2)
+- Rate limiting
+- CORS protection
+- SQL injection protection (SQLAlchemy ORM)
+- Security headers
+- Non-root container users
+- Environment variable configuration
+
+See [SECURITY.md](SECURITY.md) for details.
+
+## Documentation
+
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete production deployment guide
+- **[PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md)** - Pre-deployment checklist
+- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - Common commands and operations
+- **[SECURITY.md](SECURITY.md)** - Security policy and best practices
+- **[backend/API_DOCUMENTATION.md](backend/API_DOCUMENTATION.md)** - API reference
+- **[DEVELOPMENT.md](DEVELOPMENT.md)** - Development guide
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contribution guidelines
 
 ## Contributing
 
@@ -273,26 +366,32 @@ MIT License - see LICENSE file for details
 
 ## Roadmap
 
-- [ ] Web frontend (React/Vue)
-- [ ] Email/SMS notifications
-- [ ] PostgreSQL support
-- [ ] Rate limiting
-- [ ] User management dashboard
-- [ ] Multi-provider support (beyond Playtomic)
+### ✅ Completed (MVP)
+- [x] Web frontend (React + TypeScript)
+- [x] Email notifications
+- [x] PostgreSQL support
+- [x] Rate limiting
+- [x] User management dashboard
+- [x] Docker deployment
+- [x] Production-ready infrastructure
+
+### 🚧 Future Enhancements
+- [ ] SMS notifications
+- [ ] Multi-provider support (beyond PadelMate)
 - [ ] Court booking integration
 - [ ] Mobile app (React Native)
 - [ ] Advanced filtering (price, court quality, etc.)
 - [ ] User preferences and favorites
+- [ ] Analytics dashboard
+- [ ] Webhook support
+- [ ] API versioning
 
 ## Support
 
-For issues and questions:
-- Create an issue on GitHub
-- Check existing documentation
-- Review the API demo script
+- **Issues**: [GitHub Issues](https://github.com/thom-techlete/padelwatcher/issues)
+- **Documentation**: See documentation files listed above
+- **Security**: See [SECURITY.md](SECURITY.md) for reporting vulnerabilities
 
-## Acknowledgments
+## License
 
-- Built for padel enthusiasts
-- Powered by the Playtomic API
-- Inspired by the need for better court availability tracking
+MIT License - see LICENSE file for details
