@@ -9,6 +9,9 @@ from datetime import UTC, datetime
 from flask import Flask, jsonify
 from flask_cors import CORS
 
+# Import scheduler module to initialize background tasks
+import app.scheduler
+
 # Import scheduler to initialize it
 from app.config import CORS_ORIGINS, DEBUG, HOST, JWT_EXPIRATION_HOURS, PORT, SECRET_KEY
 from app.courtfinder.padelmate import PadelMateService
@@ -43,8 +46,6 @@ app.register_blueprint(locations_bp)
 app.register_blueprint(search_bp)
 app.register_blueprint(search_orders_bp)
 app.register_blueprint(admin_bp)
-
-# Import scheduler to initialize it
 
 
 # Error handlers
