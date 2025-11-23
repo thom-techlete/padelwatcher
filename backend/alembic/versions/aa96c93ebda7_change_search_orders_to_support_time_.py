@@ -22,12 +22,10 @@ def upgrade() -> None:
     """Upgrade schema."""
     from datetime import time
     
-    # Use batch mode for SQLite to modify columns
-    with op.batch_alter_table('search_orders') as batch_op:
-        # Rename start_time to start_time_range
-        batch_op.alter_column('start_time', new_column_name='start_time_range')
-        # Add end_time_range column as nullable first
-        batch_op.add_column(sa.Column('end_time_range', sa.Time(), nullable=True))
+    # Rename start_time to start_time_range
+    op.alter_column('search_orders', 'start_time', new_column_name='start_time_range')
+    # Add end_time_range column as nullable first
+    op.add_column('search_orders', sa.Column('end_time_range', sa.Time(), nullable=True))
     
     # Update existing records to set end_time_range to a default time (23:59:59)
     # This represents the end of the day - users will need to update their search orders
@@ -36,19 +34,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
-    # Use batch mode for SQLite to modify columns
-    with op.batch_alter_table('search_orders') as batch_op:
-        # Remove end_time_range column
-        batch_op.drop_column('end_time_range')
-        # Rename start_time_range back to start_time
-        batch_op.alter_column('start_time_range', new_column_name='start_time')
-
-
-def downgrade() -> None:
-    """Downgrade schema."""
-    # Use batch mode for SQLite to modify columns
-    with op.batch_alter_table('search_orders') as batch_op:
-        # Remove end_time_range column
-        batch_op.drop_column('end_time_range')
-        # Rename start_time_range back to start_time
-        batch_op.alter_column('start_time_range', new_column_name='start_time')
+    # Remove end_time_range column
+    op.drop_column('search_orders', 'end_time_range')
+    # Rename start_time_range back to start_time
+    op.alter_column('search_orders', 'start_time_range', new_column_name='start_time')

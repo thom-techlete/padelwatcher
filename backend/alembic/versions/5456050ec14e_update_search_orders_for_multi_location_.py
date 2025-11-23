@@ -20,10 +20,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema - recreate search_orders table with new structure."""
-    # For SQLite, we need to recreate the table
+    # PostgreSQL-specific: Drop old table
+    op.drop_table('search_orders')
+    
     # Create new table with correct structure
     op.create_table(
-        'search_orders_new',
+        'search_orders',
         sa.Column('id', sa.Integer(), primary_key=True),
         sa.Column('user_id', sa.String(), nullable=False),
         sa.Column('location_ids', sa.String(), nullable=False),
@@ -34,36 +36,27 @@ def upgrade() -> None:
         sa.Column('court_type', sa.String(), default='all'),
         sa.Column('court_config', sa.String(), default='all'),
         sa.Column('is_active', sa.Boolean(), default=True),
-        sa.Column('created_at', sa.DateTime(), default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(), default=sa.func.now(), onupdate=sa.func.now()),
+        sa.Column('created_at', sa.DateTime(), server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(), server_default=sa.func.now()),
         sa.Column('last_check_at', sa.DateTime()),
     )
-    
-    # Drop old table
-    op.drop_table('search_orders')
-    
-    # Rename new table
-    op.rename_table('search_orders_new', 'search_orders')
 
 
 def downgrade() -> None:
     """Downgrade schema - restore old search_orders structure."""
-    # Create old table structure
+    # PostgreSQL-specific: Drop new table
+    op.drop_table('search_orders')
+    
+    # Recreate old table structure
     op.create_table(
-        'search_orders_old',
+        'search_orders',
         sa.Column('id', sa.Integer(), primary_key=True),
         sa.Column('date', sa.Date(), nullable=False),
         sa.Column('start_time_range', sa.Time(), nullable=False),
         sa.Column('end_time_range', sa.Time(), nullable=False),
         sa.Column('duration', sa.Integer(), nullable=False),
         sa.Column('indoor', sa.Boolean(), nullable=True),
-        sa.Column('created_at', sa.DateTime(), default=sa.func.now()),
+        sa.Column('created_at', sa.DateTime(), server_default=sa.func.now()),
         sa.Column('status', sa.String(), default='active'),
         sa.Column('user_id', sa.String()),
     )
-    
-    # Drop new table
-    op.drop_table('search_orders')
-    
-    # Rename old table
-    op.rename_table('search_orders_old', 'search_orders')

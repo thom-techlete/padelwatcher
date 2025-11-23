@@ -6,7 +6,7 @@ Padel Watcher is a comprehensive padel court availability tracking and notificat
 
 ### Backend (Flask + SQLAlchemy)
 - **API**: RESTful Flask API with JWT authentication (`backend/app/api.py`)
-- **Database**: SQLite with SQLAlchemy ORM and Alembic migrations
+- **Database**: PostgreSQL with SQLAlchemy ORM and Alembic migrations
 - **Models**: User management, locations, courts, availability, search orders (`backend/app/models.py`)
 - **Services**: Business logic layer (`backend/app/services.py`)
 - **Providers**: Court data fetching from Playtomic API (`backend/app/courtfinder/`)

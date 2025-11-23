@@ -1,0 +1,61 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-toml
+      - id: check-json
+      - id: check-symlinks
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: detect-private-key
+      - id: pretty-format-json
+        args: ["--autofix"]
+        exclude: \.ipynb$
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.0
+    hooks:
+      - id: ruff
+        name: Ruff (linting + extra isort + rules)
+        args: [--fix]
+        types: [python]
+
+  # Python formatter
+  - repo: https://github.com/psf/black
+    rev: 25.9.0
+    hooks:
+      - id: black
+        name: Black (python formatter)
+        args: ["--line-length=88"]
+        language_version: python3.12
+        types: [python]
+
+  # Frontend checks
+  - repo: local
+    hooks:
+      - id: frontend-lint
+        name: Frontend lint
+        # Run npm from the web/ folder since pre-commit doesn't support working_dir here
+        entry: bash -c 'cd web && npm run lint -- --fix'
+        language: system
+        files: ^web/
+        pass_filenames: false
+        additional_dependencies: []
+
+      - id: frontend-typecheck
+        name: Frontend typecheck
+        entry: bash -c 'cd web && npm run typecheck'
+        language: system
+        files: ^web/
+        pass_filenames: false
+        additional_dependencies: []
+
+      - id: frontend-tests
+        name: Frontend tests
+        entry: bash -c 'cd web && npm run test:run'
+        language: system
+        files: ^web/
+        pass_filenames: false
+        additional_dependencies: []

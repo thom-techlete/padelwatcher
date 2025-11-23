@@ -318,7 +318,7 @@ The easiest way to deploy Padel Watcher is using Docker:
 ## Technology Stack
 
 - **Backend**: Flask, SQLAlchemy, Alembic, Gunicorn
-- **Database**: PostgreSQL (production), SQLite (development)
+- **Database**: PostgreSQL
 - **Authentication**: JWT (PyJWT)
 - **API**: RESTful with CORS support
 - **Frontend**: React, TypeScript, TanStack Router, TanStack Query
