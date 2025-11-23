@@ -79,9 +79,16 @@ services:
     security_opt:
       - no-new-privileges:true
 
+networks:
+  padelwatcher-network:
+    driver: bridge
+
 volumes:
   postgres_data:
     driver: local
   backend_data:
     driver: local
   frontend_dist:
+    driver: local
+  nginx_logs:
+    driver: local
