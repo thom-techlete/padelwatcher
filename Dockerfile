@@ -12,9 +12,8 @@ RUN npm ci
 COPY web/ .
 
 # Use empty string for production - nginx will proxy /api requests
-ENV VITE_API_BASE_URL=""
-
-RUN npm run build
+# Set environment variable for build command (not ENV which is for runtime)
+RUN VITE_API_BASE_URL="" npm run build
 
 # Stage 2: Build backend
 FROM python:3.12-slim
