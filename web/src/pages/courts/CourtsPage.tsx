@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { locationApi } from '@/lib/api'
 import { Card, CardHeader, CardTitle, CardContent, Spinner, Alert, Badge } from '@/components/ui'
-import { Dumbbell, Home, Users } from 'lucide-react'
+import { Dumbbell, Home, Trees, User, Users } from 'lucide-react'
 import type { Location, Court } from '@/types'
 
 export function CourtsPage() {
@@ -101,21 +101,29 @@ function LocationCourts({ location }: LocationCourtsProps) {
               <CardContent>
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2">
-                    <Badge variant={court.court_type === 'padel' ? 'default' : 'secondary'}>
-                      {court.court_type}
-                    </Badge>
-                    {court.is_indoor && (
+                    {court.indoor ? (
                       <Badge variant="outline" className="flex items-center">
                         <Home className="mr-1 h-3 w-3" />
                         Indoor
                       </Badge>
+                    ) : (
+                      <Badge variant="outline" className="flex items-center">
+                        <Trees className="mr-1 h-3 w-3" />
+                        Outdoor
+                      </Badge>
                     )}
-                    {court.is_double && (
+                    {court.double ? (
                       <Badge variant="outline" className="flex items-center">
                         <Users className="mr-1 h-3 w-3" />
                         Double
                       </Badge>
-                    )}
+                    ) : (
+                      <Badge variant="outline" className="flex items-center">
+                        <User className="mr-1 h-3 w-3" />
+                        Single
+                      </Badge>
+                    )
+                    }
                   </div>
                   <p className="text-sm text-white">
                     Location: {location.name}

@@ -227,7 +227,7 @@ export function ProfilePage() {
             <div className="flex justify-between">
               <span className="text-white/70">Account Status:</span>
               <span className="font-medium">
-                {user.is_approved ? (
+                {user.approved ? (
                   <span className="text-green-400">Approved</span>
                 ) : (
                   <span className="text-yellow-400">Pending Approval</span>

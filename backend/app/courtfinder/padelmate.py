@@ -1,7 +1,7 @@
 import httpx
 from datetime import datetime, timedelta, date, time
 from app.services import AvailabilityService
-from app.models import InternalAvailabilityDTO, Court, Location
+from app.models import InternalAvailabilityDTO, Court, Location, Availability
 from sqlalchemy import and_
 
 class PadelMateService:
@@ -305,59 +305,110 @@ class PadelMateService:
             indoor = 'indoor' in features if any(x in features for x in ['indoor', 'outdoor']) else None
             double = 'double' in features if any(x in features for x in ['double', 'single']) else None
             
-            # First, try to find existing court by resource_id (UUID)
+            # First, try to find existing court by the actual court name
             court_obj = self.service.session.query(Court).filter(
                 Court.location_id == location.id,
-                Court.name == resource_id
+                Court.name == court_name
             ).first()
             
+            # If not found by name, try to find by resource_id (UUID)
+            uuid_court = None
+            if not court_obj:
+                uuid_court = self.service.session.query(Court).filter(
+                    Court.location_id == location.id,
+                    Court.name == resource_id
+                ).first()
+            
             if court_obj:
-                # Update existing UUID-named court with proper name and features
-                court_obj.name = court_name
+                # Update existing court with latest features
                 court_obj.sport = sport
                 court_obj.indoor = indoor
                 court_obj.double = double
+            elif uuid_court:
+                # Rename UUID-named court to proper name and update features
+                uuid_court.name = court_name
+                uuid_court.sport = sport
+                uuid_court.indoor = indoor
+                uuid_court.double = double
+                court_obj = uuid_court
             else:
-                # Try to find by the actual court name
-                court_obj = self.service.session.query(Court).filter(
-                    Court.location_id == location.id,
-                    Court.name == court_name
-                ).first()
-                
-                if court_obj:
-                    # Update existing court with latest features
-                    court_obj.sport = sport
-                    court_obj.indoor = indoor
-                    court_obj.double = double
-                else:
-                    # Create new court
-                    court_obj = Court(
-                        name=court_name,
-                        location_id=location.id,
-                        sport=sport,
-                        indoor=indoor,
-                        double=double
-                    )
-                    self.service.session.add(court_obj)
+                # Create new court
+                court_obj = Court(
+                    name=court_name,
+                    location_id=location.id,
+                    sport=sport,
+                    indoor=indoor,
+                    double=double
+                )
+                self.service.session.add(court_obj)
             
             self.service.session.commit()
         
-        # Clean up any remaining UUID-named courts that don't have availabilities
-        # (these are old entries that should have been updated)
+        # Clean up any duplicate or UUID-named courts
+        # This handles the case where both UUID-named and proper-named courts exist
         from uuid import UUID
         import uuid
-        uuid_named_courts = self.service.session.query(Court).filter(Court.location_id == location.id).all()
-        for court in uuid_named_courts:
+        
+        # Get all courts for this location
+        all_courts = self.service.session.query(Court).filter(Court.location_id == location.id).all()
+        
+        # Group courts by proper name (from resources)
+        court_names_map = {str(c['resourceId']): c['name'] for c in courts}
+        
+        for court in all_courts:
             try:
+                # Check if this is a UUID-named court
                 uuid.UUID(court.name)
-                # This is a UUID-named court, check if it has availabilities
-                avail_count = self.service.session.query(Availability).filter(Availability.court_id == court.id).count()
-                if avail_count == 0:
-                    # Safe to delete - no availabilities depend on it
-                    self.service.session.delete(court)
+                # This is a UUID-named court
+                proper_name = court_names_map.get(court.name)
+                
+                if proper_name:
+                    # Find if there's already a court with the proper name
+                    proper_court = self.service.session.query(Court).filter(
+                        Court.location_id == location.id,
+                        Court.name == proper_name,
+                        Court.id != court.id
+                    ).first()
+                    
+                    if proper_court:
+                        # Merge: move availabilities from UUID court to proper court
+                        # But first check for duplicates to avoid creating them
+                        uuid_court_avails = self.service.session.query(Availability).filter(
+                            Availability.court_id == court.id
+                        ).all()
+                        
+                        for avail in uuid_court_avails:
+                            # Check if this exact availability already exists on the proper court
+                            existing = self.service.session.query(Availability).filter(
+                                Availability.court_id == proper_court.id,
+                                Availability.date == avail.date,
+                                Availability.start_time == avail.start_time,
+                                Availability.end_time == avail.end_time
+                            ).first()
+                            
+                            if existing:
+                                # Duplicate exists, just delete this one
+                                self.service.session.delete(avail)
+                            else:
+                                # No duplicate, transfer it
+                                avail.court_id = proper_court.id
+                        
+                        # Delete the UUID-named duplicate court
+                        self.service.session.delete(court)
+                    else:
+                        # No proper-named court exists, just rename this one
+                        court.name = proper_name
+                else:
+                    # UUID court with no availability and no matching proper name, safe to delete
+                    avail_count = self.service.session.query(Availability).filter(
+                        Availability.court_id == court.id
+                    ).count()
+                    if avail_count == 0:
+                        self.service.session.delete(court)
             except (ValueError, TypeError):
-                # Not a UUID, keep it
+                # Not a UUID, keep it as is
                 pass
+        
         self.service.session.commit()
         
         return location

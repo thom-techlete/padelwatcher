@@ -36,25 +36,28 @@ export interface SearchRequest {
 }
 
 export interface SearchResult {
-  courts: Array<{
-    court: {
-      id: number
-      name: string
-      court_type: string
-      is_indoor: boolean
-      is_double: boolean
-    }
+  locations: Array<{
     location: {
       id: number
       name: string
+      slug: string
       address?: string
     }
-    availabilities: Array<{
-      id: number
-      date: string
-      start_time: string
-      end_time: string
-      price?: number
+    courts: Array<{
+      court: {
+        id: number
+        name: string
+        court_type: string
+        is_indoor: boolean
+        is_double: boolean
+      }
+      availabilities: Array<{
+        id: number
+        date: string
+        start_time: string
+        end_time: string
+        price?: number
+      }>
     }>
   }>
   cached: boolean

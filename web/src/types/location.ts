@@ -17,8 +17,8 @@ export interface Court {
   location_id: number
   name: string
   court_type: string
-  is_indoor: boolean
-  is_double: boolean
+  indoor: boolean
+  double: boolean
   created_at: string
 }
 

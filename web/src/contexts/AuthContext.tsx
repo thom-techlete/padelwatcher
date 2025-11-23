@@ -71,10 +71,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     console.log('[AuthContext] Logout called')
     tokenStorage.remove()
+    queryClient.setQueryData(['currentUser'], null)
     queryClient.removeQueries({ queryKey: ['currentUser'] })
-    // queryClient.clear()  // Removed to avoid clearing router state
-    console.log('[AuthContext] Navigating to /')
-    navigate({ to: '/', replace: true })
+    console.log('[AuthContext] Navigating to /login')
+    navigate({ to: '/login', replace: true })
   }
 
   return (

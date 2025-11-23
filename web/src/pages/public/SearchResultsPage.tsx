@@ -47,8 +47,7 @@ export function SearchResultsPage() {
         force_live_search: forceLiveSearch,
       }
 
-      const result = await searchApi.searchAvailable(searchData)
-      return result
+      return await searchApi.searchAvailable(searchData)
     },
     enabled: !!params.date,
   })
@@ -88,19 +87,6 @@ export function SearchResultsPage() {
     }
   }
 
-  // Helper function to check if availability fits within search window
-  const isWithinTimeWindow = (availability: any) => {
-    try {
-      const searchStart = new Date(`2000-01-01T${params.start_time}`)
-      const searchEnd = new Date(`2000-01-01T${params.end_time}`)
-      const slotStart = new Date(`2000-01-01T${availability.start_time}`)
-      const slotEnd = new Date(`2000-01-01T${availability.end_time}`)
-
-      return slotStart >= searchStart && slotEnd <= searchEnd
-    } catch {
-      return true // If parsing fails, show the slot
-    }
-  }
 
   if (isLoading) {
     return (
@@ -132,26 +118,11 @@ export function SearchResultsPage() {
     )
   }
 
-  const totalSlots = results?.courts?.reduce((sum, r) => sum + r.availabilities.filter(isWithinTimeWindow).length, 0) || 0
-
-  // Group courts by location and filter availabilities
-  const courtsByLocation = results?.courts?.reduce((acc, result) => {
-    const filteredAvailabilities = result.availabilities.filter(isWithinTimeWindow)
-    if (filteredAvailabilities.length === 0) return acc // Skip courts with no valid slots
-
-    const locationId = result.location.id
-    if (!acc[locationId]) {
-      acc[locationId] = {
-        location: result.location,
-        courts: []
-      }
-    }
-    acc[locationId].courts.push({
-      ...result,
-      availabilities: filteredAvailabilities
-    })
-    return acc
-  }, {} as Record<number, { location: any, courts: any[] }>) || {}
+  // Calculate total courts and slots from the API response
+  const totalCourts = results?.locations?.reduce((sum, loc) => sum + loc.courts.length, 0) || 0
+  const totalSlots = results?.locations?.reduce((sum, loc) => 
+    sum + loc.courts.reduce((courtSum, court) => courtSum + court.availabilities.length, 0), 0
+  ) || 0
 
   function calculateDuration(start_time: string, end_time: string): string {
     try {
@@ -164,6 +135,8 @@ export function SearchResultsPage() {
       return 'Unknown'
     }
   }
+
+  console.log('Search Results:', results)
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -205,7 +178,7 @@ export function SearchResultsPage() {
         </p>
       </div>
 
-      {!results?.courts || results.courts.length === 0 ? (
+      {!results?.locations || results.locations.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Search className="h-12 w-12 text-white/60 mb-4" />
@@ -232,10 +205,10 @@ export function SearchResultsPage() {
                 </p>
               )}
             </div>
-            <Badge variant="secondary">{Object.keys(courtsByLocation).length} courts · {totalSlots} slots</Badge>
+            <Badge variant="secondary">{totalCourts} courts · {totalSlots} slots</Badge>
           </div>
 
-          {Object.values(courtsByLocation).map((locationGroup: any) => (
+          {results.locations.map((locationGroup) => (
             <div key={locationGroup.location.id} className="space-y-4">
               <div className="border-b border-white/20 pb-2 flex items-start justify-between">
                 <div>
@@ -259,20 +232,20 @@ export function SearchResultsPage() {
               </div>
 
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {locationGroup.courts.map((result: any, index: number) => (
-                  <Card key={index} className="hover:shadow-md transition-shadow flex flex-col">
+                {locationGroup.courts.map((courtItem) => (
+                  <Card key={courtItem.court.id} className="hover:shadow-md transition-shadow flex flex-col">
                     <CardHeader>
                       <div className="space-y-2">
                         <CardTitle className="flex items-center justify-between">
                           <span className="truncate text-lg">
-                            {result.court.name || 'Unnamed Court'}
+                            {courtItem.court.name || 'Unnamed Court'}
                           </span>
                           <div className="flex gap-1">
                             <Badge variant="outline" className="text-xs">
-                              {result.court.is_indoor ? 'Indoor' : 'Outdoor'}
+                              {courtItem.court.is_indoor ? 'Indoor' : 'Outdoor'}
                             </Badge>
                             <Badge variant="outline" className="text-xs">
-                              {result.court.is_double ? 'Double' : 'Single'}
+                              {courtItem.court.is_double ? 'Double' : 'Single'}
                             </Badge>
                           </div>
                         </CardTitle>
@@ -280,9 +253,9 @@ export function SearchResultsPage() {
                     </CardHeader>
                     <CardContent className="flex-1 flex flex-col">
                       <div className="space-y-3 flex-1">
-                        <h4 className="font-medium text-white">Available Slots ({result.availabilities.filter(isWithinTimeWindow).length})</h4>
+                        <h4 className="font-medium text-white">Available Slots ({courtItem.availabilities.length})</h4>
                         <div className="space-y-2 max-h-48 overflow-y-auto">
-                          {result.availabilities.filter(isWithinTimeWindow).map((availability: any) => (
+                          {courtItem.availabilities.map((availability) => (
                             <div
                               key={availability.id}
                               className="p-3 bg-white/10 rounded-md border border-white/20"

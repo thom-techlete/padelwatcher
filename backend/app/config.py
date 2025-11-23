@@ -29,6 +29,9 @@ DEBUG = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
 HOST = os.environ.get('FLASK_HOST', '0.0.0.0')
 PORT = int(os.environ.get('FLASK_PORT', 5000))
 
+# CORS configuration
+CORS_ORIGINS = os.environ.get('CORS_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173').split(',')
+
 # Email configuration (Gmail SMTP)
 GMAIL_SMTP_SERVER = os.environ.get('GMAIL_SMTP_SERVER', 'smtp.gmail.com')
 GMAIL_SMTP_PORT = int(os.environ.get('GMAIL_SMTP_PORT', 587))

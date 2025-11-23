@@ -10,13 +10,16 @@ import { SearchOrdersPage, CreateSearchOrderPage } from '@/pages/search-orders'
 import { SearchPage, SearchResultsPage } from '@/pages/public'
 import { ProfilePage } from '@/pages/profile/ProfilePage'
 import { tokenStorage } from '@/lib/auth'
+import { AuthProvider } from '@/contexts'
 
 // Root route
 const rootRoute = createRootRoute({
   component: () => (
-    <Layout>
-      <Outlet />
-    </Layout>
+    <AuthProvider>
+      <Layout>
+        <Outlet />
+      </Layout>
+    </AuthProvider>
   ),
 })
 

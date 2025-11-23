@@ -13,6 +13,15 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
   ({ value = '09:00', onChange, disabled = false }, ref) => {
     const [isOpen, setIsOpen] = React.useState(false)
     const containerRef = useRef<HTMLDivElement>(null)
+
+    const setRefs = (el: HTMLDivElement | null) => {
+      containerRef.current = el
+      if (typeof ref === 'function') {
+        ref(el)
+      } else if (ref) {
+        ref.current = el
+      }
+    }
     const [hours, setHours] = React.useState(() => {
       if (!value) return '09'
       const [h] = value.split(':')
@@ -44,7 +53,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
         setHours(h.padStart(2, '0'))
         setMinutes((m || '00').padStart(2, '0'))
       }
-    }, [value])
+    }, [value, hours, minutes])
 
     const handleTimeChange = (newHours: string, newMinutes: string) => {
       setHours(newHours)
@@ -89,7 +98,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
     }
 
     const handleHoursInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-      let val = e.target.value.replace(/\D/g, '').slice(0, 2)
+      const val = e.target.value.replace(/\D/g, '').slice(0, 2)
       if (val === '') {
         setHours('')
         return
@@ -103,7 +112,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
     }
 
     const handleMinutesInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-      let val = e.target.value.replace(/\D/g, '').slice(0, 2)
+      const val = e.target.value.replace(/\D/g, '').slice(0, 2)
       if (val === '') {
         setMinutes('')
         return
@@ -127,7 +136,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
     }
 
     return (
-      <div ref={containerRef} className="relative w-full">
+      <div ref={setRefs} className="relative w-full">
         <button
           type="button"
           onClick={() => !disabled && setIsOpen(!isOpen)}

@@ -107,17 +107,31 @@ class AvailabilityService:
             end_time = datetime.strptime(end_str, '%H:%M').time()
             duration = (datetime.combine(datetime.today(), end_time) - datetime.combine(datetime.today(), start_time)).seconds // 60
             date_obj = datetime.strptime(item.date, '%Y-%m-%d').date()
-            # Create availability
-            avail = Availability(
-                court_id=court.id,
-                date=date_obj,
-                start_time=start_time,
-                end_time=end_time,
-                duration=duration,
-                price=item.price,
-                available=item.available
-            )
-            self.session.add(avail)
+            
+            # Check if this exact availability already exists (court_id, date, start_time, end_time)
+            existing_avail = self.session.query(Availability).filter(
+                Availability.court_id == court.id,
+                Availability.date == date_obj,
+                Availability.start_time == start_time,
+                Availability.end_time == end_time
+            ).first()
+            
+            if existing_avail:
+                # Update price if it changed
+                existing_avail.price = item.price
+                existing_avail.available = item.available
+            else:
+                # Create new availability
+                avail = Availability(
+                    court_id=court.id,
+                    date=date_obj,
+                    start_time=start_time,
+                    end_time=end_time,
+                    duration=duration,
+                    price=item.price,
+                    available=item.available
+                )
+                self.session.add(avail)
         
         self.session.commit()
 
