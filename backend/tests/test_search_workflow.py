@@ -7,9 +7,9 @@ Flow:
 3. Track matches and notification candidates
 """
 
-from courtfinder.padelmate import PadelMateService
 from datetime import date, time
-import json
+
+from courtfinder.padelmate import PadelMateService
 
 service = PadelMateService()
 
@@ -44,7 +44,7 @@ search_order_1 = service.create_search_order(
     end_time_range_str="18:00",  # Same as start for exact time match
     duration=60,
     indoor=True,
-    user_id="user123"
+    user_id="user123",
 )
 print(f"   ✓ Created search order {search_order_1.id}: Indoor courts at 18:00-19:00")
 
@@ -55,7 +55,7 @@ search_order_2 = service.create_search_order(
     end_time_range_str="20:00",  # Same as start for exact time match
     duration=60,
     indoor=False,
-    user_id="user456"
+    user_id="user456",
 )
 print(f"   ✓ Created search order {search_order_2.id}: Outdoor courts at 20:00-21:00")
 
@@ -66,7 +66,7 @@ search_order_3 = service.create_search_order(
     end_time_range_str="19:00",  # Same as start for exact time match
     duration=90,
     indoor=None,
-    user_id="user789"
+    user_id="user789",
 )
 print(f"   ✓ Created search order {search_order_3.id}: Any courts at 19:00-20:30")
 
@@ -78,12 +78,14 @@ try:
     print(f"   ✓ Fetched {result['fetched_slots']} slots")
     print(f"   ✓ Found {result['total_matched_courts']} matching courts")
     print(f"   ✓ {len(result['notification_candidates'])} new notification candidates")
-    
-    if result['notification_candidates']:
+
+    if result["notification_candidates"]:
         print("\n   NOTIFICATION CANDIDATES FOR SEARCH ORDER 1:")
-        for i, candidate in enumerate(result['notification_candidates'], 1):
+        for i, candidate in enumerate(result["notification_candidates"], 1):
             print(f"      {i}. {candidate['court_name']} at {candidate['location']}")
-            print(f"         Time: {candidate['start_time']} - {candidate['end_time']} | Price: {candidate['price']}")
+            print(
+                f"         Time: {candidate['start_time']} - {candidate['end_time']} | Price: {candidate['price']}"
+            )
 except Exception as e:
     print(f"   ✗ Error: {e}")
 
@@ -93,12 +95,14 @@ try:
     print(f"   ✓ Fetched {result['fetched_slots']} slots")
     print(f"   ✓ Found {result['total_matched_courts']} matching courts")
     print(f"   ✓ {len(result['notification_candidates'])} new notification candidates")
-    
-    if result['notification_candidates']:
+
+    if result["notification_candidates"]:
         print("\n   NOTIFICATION CANDIDATES FOR SEARCH ORDER 2:")
-        for i, candidate in enumerate(result['notification_candidates'], 1):
+        for i, candidate in enumerate(result["notification_candidates"], 1):
             print(f"      {i}. {candidate['court_name']} at {candidate['location']}")
-            print(f"         Time: {candidate['start_time']} - {candidate['end_time']} | Price: {candidate['price']}")
+            print(
+                f"         Time: {candidate['start_time']} - {candidate['end_time']} | Price: {candidate['price']}"
+            )
 except Exception as e:
     print(f"   ✗ Error: {e}")
 
@@ -108,12 +112,14 @@ try:
     print(f"   ✓ Fetched {result['fetched_slots']} slots")
     print(f"   ✓ Found {result['total_matched_courts']} matching courts")
     print(f"   ✓ {len(result['notification_candidates'])} new notification candidates")
-    
-    if result['notification_candidates']:
+
+    if result["notification_candidates"]:
         print("\n   NOTIFICATION CANDIDATES FOR SEARCH ORDER 3:")
-        for i, candidate in enumerate(result['notification_candidates'], 1):
+        for i, candidate in enumerate(result["notification_candidates"], 1):
             print(f"      {i}. {candidate['court_name']} at {candidate['location']}")
-            print(f"         Time: {candidate['start_time']} - {candidate['end_time']} | Price: {candidate['price']}")
+            print(
+                f"         Time: {candidate['start_time']} - {candidate['end_time']} | Price: {candidate['price']}"
+            )
 except Exception as e:
     print(f"   ✗ Error: {e}")
 
@@ -123,10 +129,14 @@ for order_id in [search_order_1.id, search_order_2.id, search_order_3.id]:
     results = service.get_search_order_results(order_id)
     if results:
         print(f"\n   Search Order {order_id}:")
-        print(f"      Date: {results['date']}, Time Range: {results['start_time_range']}-{results['end_time_range']}, Duration: {results['duration']}min")
+        print(
+            f"      Date: {results['date']}, Time Range: {results['start_time_range']}-{results['end_time_range']}, Duration: {results['duration']}min"
+        )
         print(f"      Status: {results['status']}")
         print(f"      Matching courts: {results['total_matched_courts']}")
-        print(f"      Notifications: {results['notified']} sent, {results['pending_notifications']} pending")
+        print(
+            f"      Notifications: {results['notified']} sent, {results['pending_notifications']} pending"
+        )
 
 # Test direct search without creating order
 print("\n5. Testing direct search (without creating order)...")
@@ -135,13 +145,15 @@ direct_results = service.search_available_courts(
     start_time_range_str="20:00",
     end_time_range_str="20:00",  # Same as start for exact time match
     duration=60,
-    indoor=False
+    indoor=False,
 )
 print(f"   Found {len(direct_results)} outdoor courts at 20:00-21:00")
 if direct_results:
     for i, court in enumerate(direct_results[:3], 1):
         print(f"      {i}. {court['court_name']} at {court['location']}")
-        print(f"         Time: {court['start_time']} - {court['end_time']} | Price: {court['price']}")
+        print(
+            f"         Time: {court['start_time']} - {court['end_time']} | Price: {court['price']}"
+        )
 
 print("\n" + "=" * 80)
 print("TEST COMPLETE")

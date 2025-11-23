@@ -26,7 +26,7 @@ export function DashboardPage() {
     const today = new Date().toDateString()
     return createdDate === today
   }) || []
-  const recentActivity = orders?.sort((a, b) => 
+  const recentActivity = orders?.sort((a, b) =>
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   ).slice(0, 5) || []
 
@@ -186,8 +186,8 @@ export function DashboardPage() {
                     </div>
                     <div className="text-right">
                       <span className={`text-xs px-2 py-1 rounded ${
-                        order.is_active 
-                          ? 'bg-green-500/20 text-green-300' 
+                        order.is_active
+                          ? 'bg-green-500/20 text-green-300'
                           : 'bg-gray-500/20 text-gray-300'
                       }`}>
                         {order.is_active ? 'Active' : 'Inactive'}

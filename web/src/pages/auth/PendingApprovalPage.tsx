@@ -18,7 +18,7 @@ export function PendingApprovalPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <Alert variant="warning" title="Awaiting Admin Approval">
-            Your account has been created successfully and is currently pending approval by an administrator. 
+            Your account has been created successfully and is currently pending approval by an administrator.
             You'll be able to access all features once your account is approved.
           </Alert>
           <div className="space-y-2 text-sm text-white">

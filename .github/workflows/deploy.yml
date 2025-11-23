@@ -20,8 +20,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read        
-  packages: write   
+  contents: read
+  packages: write
 
 concurrency:
   group: prod-${{ github.event.pull_request.base.ref || github.ref }}
@@ -57,11 +57,11 @@ jobs:
           IMAGE_ID="${{ env.REGISTRY }}/${OWNER}/${NAME}"
           COMMIT_SHA="${{ github.sha }}"
           SHORT_SHA="${COMMIT_SHA:0:7}"
-          
+
           echo "IMAGE_ID=${IMAGE_ID}" >> $GITHUB_ENV
           echo "image-tag=sha-${SHORT_SHA}" >> $GITHUB_OUTPUT
           echo "commit-sha=${COMMIT_SHA}" >> $GITHUB_OUTPUT
-          
+
           echo "🏷️ Image will be tagged as: ${IMAGE_ID}:latest and ${IMAGE_ID}:sha-${SHORT_SHA}"
 
       - name: Log in to ghcr
@@ -117,22 +117,22 @@ jobs:
           script: |
             set -e
             echo "🚀 Starting deployment for padelwatcher..."
-            
+
             # Navigate to project directory
             cd /home/padelwatcher/docker
-            
+
             # Pull latest code
             git checkout main
             git fetch origin --prune
             git pull --ff-only
-            
+
             docker compose pull
             docker compose down --remove-orphans
             docker compose up -d
 
             # Clean up old images
             docker system prune -f
-            
+
             echo "🏁 Deployment process completed!"
 
   prune-ghcr:
@@ -144,7 +144,7 @@ jobs:
       - name: Clean up old GHCR images
         uses: actions/delete-package-versions@v5
         with:
-          owner: ${{ github.repository_owner }} 
+          owner: ${{ github.repository_owner }}
           package-name: ${{ github.event.repository.name }}
           package-type: container
           min-versions-to-keep: 3

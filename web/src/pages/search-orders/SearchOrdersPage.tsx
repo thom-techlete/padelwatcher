@@ -74,7 +74,7 @@ export function SearchOrdersPage() {
     // Format date from YYYY-MM-DD to DD/MM/YYYY
     const [year, month, day] = order.date.split('-')
     const formattedDate = `${day}/${month}/${year}`
-    
+
     // Navigate to search results page with order parameters
     const searchParams = new URLSearchParams({
       date: formattedDate,
@@ -86,7 +86,7 @@ export function SearchOrdersPage() {
       location_ids: order.location_ids.join(','),
       live_search: 'true'
     })
-    
+
     navigate({
       to: '/search-results',
       search: Object.fromEntries(searchParams)
@@ -97,7 +97,7 @@ export function SearchOrdersPage() {
     const names = locationIds
       .map(id => locationsMap.get(id)?.name)
       .filter(Boolean)
-    
+
     if (names.length === 0) return 'Unknown'
     if (names.length === 1) return names[0]
     if (names.length === 2) return names.join(' & ')

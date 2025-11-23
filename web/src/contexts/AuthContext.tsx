@@ -35,11 +35,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginMutation = useMutation({
     mutationFn: authApi.login,
     onSuccess: (data) => {
-      console.log('[AuthContext] Login successful, received data:', { 
-        hasToken: !!data.token, 
+      console.log('[AuthContext] Login successful, received data:', {
+        hasToken: !!data.token,
         tokenPreview: data.token?.substring(0, 20) + '...',
         userId: data.user_id,
-        email: data.email 
+        email: data.email
       })
       tokenStorage.set(data.token)
       console.log('[AuthContext] Token saved, invalidating queries')

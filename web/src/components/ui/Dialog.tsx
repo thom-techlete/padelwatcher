@@ -16,10 +16,13 @@ export interface DialogContentProps extends React.HTMLAttributes<HTMLDivElement>
   onClose?: () => void
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface DialogHeaderProps extends React.HTMLAttributes<HTMLDivElement> {}
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface DialogTitleProps extends React.HTMLAttributes<HTMLHeadingElement> {}
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface DialogDescriptionProps extends React.HTMLAttributes<HTMLParagraphElement> {}
 
 const DialogContext = React.createContext<{
@@ -41,7 +44,7 @@ const Dialog: React.FC<DialogProps> & {
   const [internalOpen, setInternalOpen] = React.useState(false)
   const isControlled = controlledOpen !== undefined
   const open = isControlled ? controlledOpen : internalOpen
-  
+
   const handleOpenChange = (newOpen: boolean) => {
     if (isControlled) {
       onOpenChange?.(newOpen)
@@ -60,7 +63,7 @@ const Dialog: React.FC<DialogProps> & {
 const DialogTrigger = React.forwardRef<HTMLButtonElement, DialogTriggerProps>(
   ({ className, onClick, ...props }, ref) => {
     const { onOpenChange } = React.useContext(DialogContext)
-    
+
     return (
       <button
         ref={ref}
@@ -79,27 +82,27 @@ DialogTrigger.displayName = 'DialogTrigger'
 const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
   ({ className, onClose, ...props }, ref) => {
     const { open, onOpenChange } = React.useContext(DialogContext)
-    
+
     React.useEffect(() => {
       const handleEscape = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
           onOpenChange(false)
         }
       }
-      
+
       if (open) {
         document.addEventListener('keydown', handleEscape)
         document.body.style.overflow = 'hidden'
       }
-      
+
       return () => {
         document.removeEventListener('keydown', handleEscape)
         document.body.style.overflow = 'unset'
       }
     }, [open, onOpenChange])
-    
+
     if (!open) return null
-    
+
     return (
       <>
         {/* Backdrop */}
@@ -107,7 +110,7 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
           className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
           onClick={() => onOpenChange(false)}
         />
-        
+
         {/* Modal */}
         <div
           ref={ref}
@@ -171,7 +174,7 @@ DialogDescription.displayName = 'DialogDescription'
 const DialogClose = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
   ({ className, ...props }, ref) => {
     const { onOpenChange } = React.useContext(DialogContext)
-    
+
     return (
       <button
         ref={ref}

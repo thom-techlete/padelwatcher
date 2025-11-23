@@ -255,7 +255,7 @@ export interface MyData {
 ```tsx
 export const myApi = {
   getAll: () => apiClient.get<MyData[]>('/api/my-data'),
-  create: (data: Partial<MyData>) => 
+  create: (data: Partial<MyData>) =>
     apiClient.post<MyData>('/api/my-data', data),
 }
 ```
@@ -278,7 +278,7 @@ const { data } = useQuery({
 </div>
 
 // Use cn() for conditional classes
-<Button 
+<Button
   className={cn(
     'base-styles',
     isActive && 'active-styles',

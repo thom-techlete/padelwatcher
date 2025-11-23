@@ -83,7 +83,7 @@ Documentation = "https://github.com/thom-techlete/padelwatcher/blob/main/README.
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["app*", "backend*"]
-exclude = ["tests*", "web*", "scripts*"]
+exclude = ["backend/tests*", "web*", "scripts*"]
 
 [tool.black]
 line-length = 88

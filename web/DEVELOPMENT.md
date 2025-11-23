@@ -67,7 +67,7 @@ function LocationsList() {
 
   if (isLoading) return <Spinner />
   if (error) return <Alert variant="error">{error.message}</Alert>
-  
+
   return <div>{/* Render locations */}</div>
 }
 ```
@@ -183,12 +183,12 @@ export function MyComponent({ title }: Props) {
   // Hooks
   const [isOpen, setIsOpen] = useState(false)
   const { data } = useQuery({...})
-  
+
   // Handlers
   const handleClick = () => {
     setIsOpen(!isOpen)
   }
-  
+
   // Render
   return (
     <Card>
@@ -222,11 +222,11 @@ import { useForm } from 'react-hook-form'
 
 function LoginForm() {
   const { register, handleSubmit, formState: { errors } } = useForm()
-  
+
   const onSubmit = async (data) => {
     // Handle form submission
   }
-  
+
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
       <Input {...register('email', { required: true })} />

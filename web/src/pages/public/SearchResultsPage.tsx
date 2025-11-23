@@ -120,7 +120,7 @@ export function SearchResultsPage() {
 
   // Calculate total courts and slots from the API response
   const totalCourts = results?.locations?.reduce((sum, loc) => sum + loc.courts.length, 0) || 0
-  const totalSlots = results?.locations?.reduce((sum, loc) => 
+  const totalSlots = results?.locations?.reduce((sum, loc) =>
     sum + loc.courts.reduce((courtSum, court) => courtSum + court.availabilities.length, 0), 0
   ) || 0
 

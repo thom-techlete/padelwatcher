@@ -1,11 +1,23 @@
+from datetime import UTC, datetime, timedelta
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from app.models import Base, Provider, Location, Court, Availability, InternalAvailabilityDTO, SearchOrder, SearchOrderNotification, User, SearchRequest
+
 from app.config import SQLALCHEMY_DATABASE_URI
-from datetime import datetime, timedelta, timezone
+from app.models import (
+    Availability,
+    Court,
+    Location,
+    Provider,
+    SearchOrder,
+    SearchOrderNotification,
+    SearchRequest,
+    User,
+)
 
 engine = create_engine(SQLALCHEMY_DATABASE_URI)
 Session = sessionmaker(bind=engine)
+
 
 class AvailabilityService:
     def __init__(self):
@@ -33,7 +45,11 @@ class AvailabilityService:
         return self.session.query(Location).all()
 
     def get_location_by_name_and_provider(self, name, provider_id):
-        return self.session.query(Location).filter(Location.name == name, Location.provider_id == provider_id).first()
+        return (
+            self.session.query(Location)
+            .filter(Location.name == name, Location.provider_id == provider_id)
+            .first()
+        )
 
     def add_location(self, location):
         self.session.add(location)
@@ -51,7 +67,11 @@ class AvailabilityService:
         return self.session.query(Court).all()
 
     def get_court_by_name_and_location(self, name, location_id):
-        return self.session.query(Court).filter(Court.name == name, Court.location_id == location_id).first()
+        return (
+            self.session.query(Court)
+            .filter(Court.name == name, Court.location_id == location_id)
+            .first()
+        )
 
     def add_court(self, court):
         self.session.add(court)
@@ -77,45 +97,60 @@ class AvailabilityService:
         # NOTE: Courts should be created by add_location_by_slug() with proper properties
         # This method stores availability, potentially creating temporary UUID-named courts
         # that will be updated and merged by add_location_by_slug() later
-        
+
         for item in internal_list:
             # Get location
-            location = self.session.query(Location).filter(Location.name == item.location).first()
+            location = (
+                self.session.query(Location)
+                .filter(Location.name == item.location)
+                .first()
+            )
             if not location:
                 continue
-            
+
             # Try to find court by resource_id (UUID)
-            court = self.session.query(Court).filter(
-                Court.location_id == location.id,
-                Court.name == item.court  # Try matching by UUID
-            ).first()
-            
+            court = (
+                self.session.query(Court)
+                .filter(
+                    Court.location_id == location.id,
+                    Court.name == item.court,  # Try matching by UUID
+                )
+                .first()
+            )
+
             if not court:
                 # UUID-named court not found
                 # Create one temporarily with UUID name - add_location_by_slug() will update it later with proper name
                 court = Court(
                     name=item.court,  # Use resource_id (UUID) as name
-                    location_id=location.id
+                    location_id=location.id,
                     # Properties (indoor, double) default to False/NULL - will be set by add_location_by_slug()
                 )
                 self.session.add(court)
                 self.session.flush()  # Flush to get the ID
-            
+
             # Parse timeslot
-            start_str, end_str = item.timeslot.split('-')
-            start_time = datetime.strptime(start_str, '%H:%M').time()
-            end_time = datetime.strptime(end_str, '%H:%M').time()
-            duration = (datetime.combine(datetime.today(), end_time) - datetime.combine(datetime.today(), start_time)).seconds // 60
-            date_obj = datetime.strptime(item.date, '%Y-%m-%d').date()
-            
+            start_str, end_str = item.timeslot.split("-")
+            start_time = datetime.strptime(start_str, "%H:%M").time()
+            end_time = datetime.strptime(end_str, "%H:%M").time()
+            duration = (
+                datetime.combine(datetime.today(), end_time)
+                - datetime.combine(datetime.today(), start_time)
+            ).seconds // 60
+            date_obj = datetime.strptime(item.date, "%Y-%m-%d").date()
+
             # Check if this exact availability already exists (court_id, date, start_time, end_time)
-            existing_avail = self.session.query(Availability).filter(
-                Availability.court_id == court.id,
-                Availability.date == date_obj,
-                Availability.start_time == start_time,
-                Availability.end_time == end_time
-            ).first()
-            
+            existing_avail = (
+                self.session.query(Availability)
+                .filter(
+                    Availability.court_id == court.id,
+                    Availability.date == date_obj,
+                    Availability.start_time == start_time,
+                    Availability.end_time == end_time,
+                )
+                .first()
+            )
+
             if existing_avail:
                 # Update price if it changed
                 existing_avail.price = item.price
@@ -129,15 +164,17 @@ class AvailabilityService:
                     end_time=end_time,
                     duration=duration,
                     price=item.price,
-                    available=item.available
+                    available=item.available,
                 )
                 self.session.add(avail)
-        
+
         self.session.commit()
 
-    def get_available_courts_in_time_range(self, date, start_time_range, end_time_range, duration, indoor=None):
+    def get_available_courts_in_time_range(
+        self, date, start_time_range, end_time_range, duration, indoor=None
+    ):
         from sqlalchemy import and_
-        
+
         # Find availabilities where:
         # 1. Date matches
         # 2. Available is True
@@ -147,75 +184,102 @@ class AvailabilityService:
         query = self.session.query(Availability).filter(
             and_(
                 Availability.date == date,
-                Availability.available == True,
+                Availability.available,
                 Availability.duration == duration,
                 Availability.start_time >= start_time_range,
-                Availability.start_time <= end_time_range
+                Availability.start_time <= end_time_range,
             )
         )
-        
+
         if indoor is not None:
             query = query.join(Court).filter(Court.indoor == indoor)
-        
+
         availabilities = query.all()
-        
+
         results = []
         for avail in availabilities:
             # Check if this slot fits within the time range
-            slot_end_time = (datetime.combine(date, avail.start_time) + timedelta(minutes=duration)).time()
+            slot_end_time = (
+                datetime.combine(date, avail.start_time) + timedelta(minutes=duration)
+            ).time()
             if slot_end_time <= end_time_range:
-                court = self.session.query(Court).filter(Court.id == avail.court_id).first()
+                court = (
+                    self.session.query(Court).filter(Court.id == avail.court_id).first()
+                )
                 if court:
-                    location = self.session.query(Location).filter(Location.id == court.location_id).first()
-                    results.append({
-                        'court_name': court.name,
-                        'location': location.name if location else 'Unknown',
-                        'start_time': str(avail.start_time),
-                        'end_time': str(avail.end_time),
-                        'price': avail.price,
-                        'indoor': court.indoor
-                    })
-        
+                    location = (
+                        self.session.query(Location)
+                        .filter(Location.id == court.location_id)
+                        .first()
+                    )
+                    results.append(
+                        {
+                            "court_name": court.name,
+                            "location": location.name if location else "Unknown",
+                            "start_time": str(avail.start_time),
+                            "end_time": str(avail.end_time),
+                            "price": avail.price,
+                            "indoor": court.indoor,
+                        }
+                    )
+
         return results
 
     def get_available_courts(self, date, start_time, duration, indoor=None):
-        from sqlalchemy import and_
         from datetime import timedelta
-        
-        end_time = (datetime.combine(date, start_time) + timedelta(minutes=duration)).time()
-        
+
+        from sqlalchemy import and_
+
+        end_time = (
+            datetime.combine(date, start_time) + timedelta(minutes=duration)
+        ).time()
+
         query = self.session.query(Availability).filter(
             and_(
                 Availability.date == date,
                 Availability.start_time == start_time,
                 Availability.end_time == end_time,
-                Availability.available == True
+                Availability.available,
             )
         )
-        
+
         if indoor is not None:
             query = query.join(Court).filter(Court.indoor == indoor)
-        
+
         availabilities = query.all()
-        
+
         results = []
         for avail in availabilities:
             court = self.session.query(Court).filter(Court.id == avail.court_id).first()
             if court:
-                location = self.session.query(Location).filter(Location.id == court.location_id).first()
-                results.append({
-                    'court_name': court.name,
-                    'location': location.name if location else 'Unknown',
-                    'start_time': str(avail.start_time),
-                    'end_time': str(avail.end_time),
-                    'price': avail.price,
-                    'indoor': court.indoor
-                })
-        
+                location = (
+                    self.session.query(Location)
+                    .filter(Location.id == court.location_id)
+                    .first()
+                )
+                results.append(
+                    {
+                        "court_name": court.name,
+                        "location": location.name if location else "Unknown",
+                        "start_time": str(avail.start_time),
+                        "end_time": str(avail.end_time),
+                        "price": avail.price,
+                        "indoor": court.indoor,
+                    }
+                )
+
         return results
 
     # Search Order Methods
-    def create_search_order(self, date, start_time_range, end_time_range, duration, indoor=None, user_id=None):
+    def create_search_order(
+        self,
+        date,
+        start_time_range,
+        end_time_range,
+        duration,
+        indoor=None,
+        user_id=None,
+    ):
         """Create a new search order for a user to search for available courts within a time range"""
         search_order = SearchOrder(
             date=date,
@@ -224,7 +288,7 @@ class AvailabilityService:
             duration=duration,
             indoor=indoor,
             user_id=user_id,
-            status='active'
+            status="active",
         )
         self.session.add(search_order)
         self.session.commit()
@@ -232,11 +296,17 @@ class AvailabilityService:
 
     def get_active_search_orders(self):
         """Get all active search orders"""
-        return self.session.query(SearchOrder).filter(SearchOrder.status == 'active').all()
+        return (
+            self.session.query(SearchOrder).filter(SearchOrder.status == "active").all()
+        )
 
     def get_search_order(self, search_order_id):
         """Get a specific search order by ID"""
-        return self.session.query(SearchOrder).filter(SearchOrder.id == search_order_id).first()
+        return (
+            self.session.query(SearchOrder)
+            .filter(SearchOrder.id == search_order_id)
+            .first()
+        )
 
     def update_search_order_status(self, search_order_id, status):
         """Update search order status (active, completed, cancelled)"""
@@ -255,13 +325,15 @@ class AvailabilityService:
         search_order = self.get_search_order(search_order_id)
         if not search_order:
             return []
-        
+
         from sqlalchemy import and_
-        
+
         # Calculate the end time for the duration
-        slot_end_time = (datetime.combine(search_order.date, search_order.start_time_range) + 
-                        timedelta(minutes=search_order.duration)).time()
-        
+        slot_end_time = (
+            datetime.combine(search_order.date, search_order.start_time_range)
+            + timedelta(minutes=search_order.duration)
+        ).time()
+
         # Find availabilities where:
         # 1. Date matches
         # 2. Available is True
@@ -271,34 +343,40 @@ class AvailabilityService:
         query = self.session.query(Availability).filter(
             and_(
                 Availability.date == search_order.date,
-                Availability.available == True,
+                Availability.available,
                 Availability.duration == search_order.duration,
                 Availability.start_time >= search_order.start_time_range,
                 Availability.start_time <= search_order.end_time_range,
                 # Ensure the slot fits: start_time + duration <= end_time_range
-                slot_end_time <= search_order.end_time_range
+                slot_end_time <= search_order.end_time_range,
             )
         )
-        
+
         if search_order.indoor is not None:
             query = query.join(Court).filter(Court.indoor == search_order.indoor)
-        
+
         availabilities = query.all()
-        
+
         results = []
         for avail in availabilities:
             court = self.session.query(Court).filter(Court.id == avail.court_id).first()
             if court:
-                location = self.session.query(Location).filter(Location.id == court.location_id).first()
-                results.append({
-                    'court_name': court.name,
-                    'location': location.name if location else 'Unknown',
-                    'start_time': str(avail.start_time),
-                    'end_time': str(avail.end_time),
-                    'price': avail.price,
-                    'indoor': court.indoor
-                })
-        
+                location = (
+                    self.session.query(Location)
+                    .filter(Location.id == court.location_id)
+                    .first()
+                )
+                results.append(
+                    {
+                        "court_name": court.name,
+                        "location": location.name if location else "Unknown",
+                        "start_time": str(avail.start_time),
+                        "end_time": str(avail.end_time),
+                        "price": avail.price,
+                        "indoor": court.indoor,
+                    }
+                )
+
         return results
 
     def get_notification_candidates(self, search_order_id):
@@ -309,57 +387,66 @@ class AvailabilityService:
         search_order = self.get_search_order(search_order_id)
         if not search_order:
             return []
-        
-        from sqlalchemy import and_, not_
-        
+
+        from sqlalchemy import and_
+
         # Calculate the end time for the duration
-        slot_end_time = (datetime.combine(search_order.date, search_order.start_time_range) + 
-                        timedelta(minutes=search_order.duration)).time()
-        
+        slot_end_time = (
+            datetime.combine(search_order.date, search_order.start_time_range)
+            + timedelta(minutes=search_order.duration)
+        ).time()
+
         # Get available courts that match the search criteria within time range
-        query = self.session.query(Availability, Court, Location).join(
-            Court, Availability.court_id == Court.id
-        ).join(
-            Location, Court.location_id == Location.id
-        ).filter(
-            and_(
-                Availability.date == search_order.date,
-                Availability.available == True,
-                Availability.duration == search_order.duration,
-                Availability.start_time >= search_order.start_time_range,
-                Availability.start_time <= search_order.end_time_range,
-                # Ensure the slot fits: start_time + duration <= end_time_range
-                slot_end_time <= search_order.end_time_range
+        query = (
+            self.session.query(Availability, Court, Location)
+            .join(Court, Availability.court_id == Court.id)
+            .join(Location, Court.location_id == Location.id)
+            .filter(
+                and_(
+                    Availability.date == search_order.date,
+                    Availability.available,
+                    Availability.duration == search_order.duration,
+                    Availability.start_time >= search_order.start_time_range,
+                    Availability.start_time <= search_order.end_time_range,
+                    # Ensure the slot fits: start_time + duration <= end_time_range
+                    slot_end_time <= search_order.end_time_range,
+                )
             )
         )
-        
+
         if search_order.indoor is not None:
             query = query.filter(Court.indoor == search_order.indoor)
-        
+
         availabilities = query.all()
-        
+
         # Filter out already notified
         candidates = []
         for avail, court, location in availabilities:
-            existing_notification = self.session.query(SearchOrderNotification).filter(
-                and_(
-                    SearchOrderNotification.search_order_id == search_order_id,
-                    SearchOrderNotification.availability_id == avail.id
+            existing_notification = (
+                self.session.query(SearchOrderNotification)
+                .filter(
+                    and_(
+                        SearchOrderNotification.search_order_id == search_order_id,
+                        SearchOrderNotification.availability_id == avail.id,
+                    )
                 )
-            ).first()
-            
+                .first()
+            )
+
             if not existing_notification:
-                candidates.append({
-                    'availability_id': avail.id,
-                    'court_id': court.id,
-                    'court_name': court.name,
-                    'location': location.name,
-                    'start_time': str(avail.start_time),
-                    'end_time': str(avail.end_time),
-                    'price': avail.price,
-                    'indoor': court.indoor
-                })
-        
+                candidates.append(
+                    {
+                        "availability_id": avail.id,
+                        "court_id": court.id,
+                        "court_name": court.name,
+                        "location": location.name,
+                        "start_time": str(avail.start_time),
+                        "end_time": str(avail.end_time),
+                        "price": avail.price,
+                        "indoor": court.indoor,
+                    }
+                )
+
         return candidates
 
     def create_notification_record(self, search_order_id, court_id, availability_id):
@@ -368,7 +455,7 @@ class AvailabilityService:
             search_order_id=search_order_id,
             court_id=court_id,
             availability_id=availability_id,
-            notified=False  # Will be set to True after actual notification is sent
+            notified=False,  # Will be set to True after actual notification is sent
         )
         self.session.add(notification)
         self.session.commit()
@@ -376,21 +463,36 @@ class AvailabilityService:
 
     def mark_notification_sent(self, notification_id):
         """Mark a notification as sent"""
-        notification = self.session.query(SearchOrderNotification).filter(
-            SearchOrderNotification.id == notification_id
-        ).first()
+        notification = (
+            self.session.query(SearchOrderNotification)
+            .filter(SearchOrderNotification.id == notification_id)
+            .first()
+        )
         if notification:
             notification.notified = True
-            notification.notified_at = datetime.now(timezone.utc)
+            notification.notified_at = datetime.now(UTC)
             self.session.commit()
             return notification
         return None
 
-    def create_search_request_record(self, search_hash, date, start_time, end_time, duration_minutes, court_type, court_config, location_ids, live_search, slots_found):
+    def create_search_request_record(
+        self,
+        search_hash,
+        date,
+        start_time,
+        end_time,
+        duration_minutes,
+        court_type,
+        court_config,
+        location_ids,
+        live_search,
+        slots_found,
+    ):
         """Create a record of a search request, updating existing record if hash already exists"""
         import json
+
         from sqlalchemy.exc import IntegrityError
-        
+
         search_request = SearchRequest(
             search_hash=search_hash,
             date=date,
@@ -401,9 +503,9 @@ class AvailabilityService:
             court_config=court_config,
             location_ids=json.dumps(location_ids),
             live_search=live_search,
-            slots_found=slots_found
+            slots_found=slots_found,
         )
-        
+
         try:
             self.session.add(search_request)
             self.session.commit()
@@ -411,12 +513,14 @@ class AvailabilityService:
         except IntegrityError:
             # If unique constraint fails, rollback and update existing record
             self.session.rollback()
-            
+
             # Find existing record and update it
-            existing_request = self.session.query(SearchRequest).filter(
-                SearchRequest.search_hash == search_hash
-            ).first()
-            
+            existing_request = (
+                self.session.query(SearchRequest)
+                .filter(SearchRequest.search_hash == search_hash)
+                .first()
+            )
+
             if existing_request:
                 existing_request.date = date
                 existing_request.start_time = start_time
@@ -427,54 +531,70 @@ class AvailabilityService:
                 existing_request.location_ids = json.dumps(location_ids)
                 existing_request.live_search = live_search
                 existing_request.slots_found = slots_found
-                existing_request.performed_at = datetime.now(timezone.utc)  # Update timestamp
+                existing_request.performed_at = datetime.now(UTC)  # Update timestamp
                 self.session.commit()
                 return existing_request
-            
+
             # If we can't find the existing record, re-raise the error
             raise
 
     def get_recent_live_search(self, search_hash, max_age_minutes=15):
         """Check if there's a recent live search with the same parameters"""
         from datetime import timedelta
-        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=max_age_minutes)
-        
-        recent_search = self.session.query(SearchRequest).filter(
-            SearchRequest.search_hash == search_hash,
-            SearchRequest.live_search == True,
-            SearchRequest.performed_at >= cutoff_time
-        ).order_by(SearchRequest.performed_at.desc()).first()
-        
+
+        cutoff_time = datetime.now(UTC) - timedelta(minutes=max_age_minutes)
+
+        recent_search = (
+            self.session.query(SearchRequest)
+            .filter(
+                SearchRequest.search_hash == search_hash,
+                SearchRequest.live_search,
+                SearchRequest.performed_at >= cutoff_time,
+            )
+            .order_by(SearchRequest.performed_at.desc())
+            .first()
+        )
+
         return recent_search
 
-    def generate_search_hash(self, date, start_time, end_time, duration_minutes, court_type, court_config, location_ids):
+    def generate_search_hash(
+        self,
+        date,
+        start_time,
+        end_time,
+        duration_minutes,
+        court_type,
+        court_config,
+        location_ids,
+    ):
         """Generate a hash for search parameters to identify identical searches"""
         import hashlib
         import json
-        
+
         # Sort location_ids to ensure consistent hashing
-        sorted_location_ids = sorted(location_ids) if isinstance(location_ids, list) else location_ids
-        
+        sorted_location_ids = (
+            sorted(location_ids) if isinstance(location_ids, list) else location_ids
+        )
+
         # Only cache based on date and locations since live API search is the same regardless of duration, time, or court type
-        search_data = {
-            'date': str(date),
-            'location_ids': sorted_location_ids
-        }
-        
+        search_data = {"date": str(date), "location_ids": sorted_location_ids}
+
         search_string = json.dumps(search_data, sort_keys=True)
         return hashlib.md5(search_string.encode()).hexdigest()
 
     def clear_search_cache(self, older_than_minutes=None):
         """Clear search request cache. If older_than_minutes is specified, only clear records older than that."""
         if older_than_minutes is not None:
-            cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=older_than_minutes)
-            deleted_count = self.session.query(SearchRequest).filter(
-                SearchRequest.performed_at < cutoff_time
-            ).delete()
+            cutoff_time = datetime.now(UTC) - timedelta(minutes=older_than_minutes)
+            deleted_count = (
+                self.session.query(SearchRequest)
+                .filter(SearchRequest.performed_at < cutoff_time)
+                .delete()
+            )
         else:
             # Clear all search requests
             deleted_count = self.session.query(SearchRequest).delete()
-        
+
         self.session.commit()
         return deleted_count
 
@@ -487,7 +607,7 @@ class AvailabilityService:
             user_id=user_id,
             approved=False,  # New users need approval
             is_admin=is_admin,
-            created_at=datetime.now(timezone.utc)
+            created_at=datetime.now(UTC),
         )
         self.session.add(user)
         self.session.commit()
@@ -510,7 +630,7 @@ class AvailabilityService:
         user = self.get_user_by_id_numeric(user_id)
         if user:
             user.approved = True
-            user.approved_at = datetime.now(timezone.utc)
+            user.approved_at = datetime.now(UTC)
             user.approved_by = approved_by_user_id
             self.session.commit()
             return user
@@ -527,11 +647,11 @@ class AvailabilityService:
 
     def get_pending_users(self):
         """Get all users waiting for approval"""
-        return self.session.query(User).filter(User.approved == False).all()
+        return self.session.query(User).filter(~User.approved).all()
 
     def get_approved_users(self):
         """Get all approved users"""
-        return self.session.query(User).filter(User.approved == True).all()
+        return self.session.query(User).filter(User.approved).all()
 
     def get_all_users(self):
         """Get all users"""
@@ -557,12 +677,14 @@ class AvailabilityService:
 
     def delete_location(self, location_id):
         """Delete a location and all its associated data"""
-        from app.models import Location, Court, Availability, SearchOrderNotification
-        
-        location = self.session.query(Location).filter(Location.id == location_id).first()
+        from app.models import Availability, Court, Location, SearchOrderNotification
+
+        location = (
+            self.session.query(Location).filter(Location.id == location_id).first()
+        )
         if not location:
             return False
-        
+
         # Delete associated data in order
         # Delete search order notifications
         self.session.query(SearchOrderNotification).filter(
@@ -570,17 +692,17 @@ class AvailabilityService:
                 self.session.query(Court.id).filter(Court.location_id == location_id)
             )
         ).delete(synchronize_session=False)
-        
+
         # Delete availabilities
         self.session.query(Availability).filter(
             Availability.court_id.in_(
                 self.session.query(Court.id).filter(Court.location_id == location_id)
             )
         ).delete(synchronize_session=False)
-        
+
         # Delete courts
         self.session.query(Court).filter(Court.location_id == location_id).delete()
-        
+
         # Delete location
         self.session.delete(location)
         self.session.commit()
@@ -592,11 +714,12 @@ class AvailabilityService:
         if user and user.approved and user.active:
             # Import here to avoid circular imports
             from werkzeug.security import check_password_hash
+
             if check_password_hash(user.password_hash, password):
                 return {
-                    'user_id': user.user_id,
-                    'email': user.email,
-                    'is_admin': user.is_admin
+                    "user_id": user.user_id,
+                    "email": user.email,
+                    "is_admin": user.is_admin,
                 }
         return None
 
@@ -605,29 +728,29 @@ class AvailabilityService:
         user = self.get_user_by_id(user_id)
         if not user:
             return None
-        
+
         # Update email if provided and not already taken
         if email and email != user.email:
             existing_user = self.get_user_by_email(email)
             if existing_user:
                 raise ValueError("Email already in use")
             user.email = email
-        
+
         self.session.commit()
         return user
 
     def update_user_password(self, user_id, current_password, new_password):
         """Update user password after verifying current password"""
         from werkzeug.security import check_password_hash, generate_password_hash
-        
+
         user = self.get_user_by_id(user_id)
         if not user:
             return None
-        
+
         # Verify current password
         if not check_password_hash(user.password_hash, current_password):
             raise ValueError("Current password is incorrect")
-        
+
         # Update password
         user.password_hash = generate_password_hash(new_password)
         self.session.commit()

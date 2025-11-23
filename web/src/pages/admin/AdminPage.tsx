@@ -404,7 +404,7 @@ export function AdminPage() {
               <p className="text-sm text-white/80 mb-4">
                 Clear the search cache to force fresh data fetching. This will remove cached search results and require new API calls for subsequent searches.
               </p>
-              
+
               <div className="flex gap-4 items-center">
                 <div className="flex-1">
                   <Label htmlFor="cache-older-than">Clear cache older than (minutes)</Label>
@@ -460,7 +460,7 @@ export function AdminPage() {
               <p className="text-sm text-white/80 mb-4">
                 Refresh all location data by clearing and re-fetching court information from Playtomic. This will delete all courts and availability data, then re-download them from the API while keeping the location records.
               </p>
-              
+
               <Button
                 variant="destructive"
                 onClick={() => {

@@ -21,8 +21,9 @@ export function AddLocationForm({ onSuccess }: AddLocationFormProps) {
       setError(null)
       onSuccess?.()
     },
-    onError: (err: any) => {
-      setError(err.message || 'Failed to add location')
+    onError: (err: unknown) => {
+      const error = err as { message?: string }
+      setError(error.message || 'Failed to add location')
     },
   })
 
@@ -32,7 +33,7 @@ export function AddLocationForm({ onSuccess }: AddLocationFormProps) {
       setError('Please enter a location slug')
       return
     }
-    
+
     let processedSlug = slug.trim()
     // Extract slug from full URL if provided
     if (processedSlug.includes('/clubs/')) {
@@ -41,7 +42,7 @@ export function AddLocationForm({ onSuccess }: AddLocationFormProps) {
         processedSlug = parts[1].split(/[/?]/)[0] // Take everything before / or ?
       }
     }
-    
+
     mutation.mutate(processedSlug)
   }
 
@@ -52,7 +53,7 @@ export function AddLocationForm({ onSuccess }: AddLocationFormProps) {
           {error}
         </Alert>
       )}
-      
+
       <div className="space-y-2">
         <label htmlFor="slug" className="text-sm font-medium text-white">
           Location Slug

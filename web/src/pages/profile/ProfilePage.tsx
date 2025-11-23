@@ -115,7 +115,7 @@ export function ProfilePage() {
         {/* Profile Information */}
         <Card className="p-6">
           <h2 className="text-xl font-semibold mb-4 text-white">Profile Information</h2>
-          
+
           <form onSubmit={handleProfileSubmit} className="space-y-4">
             <div>
               <Label htmlFor="username">Username</Label>
@@ -143,7 +143,7 @@ export function ProfilePage() {
             {profileSuccess && (
               <Alert variant="success">{profileSuccess}</Alert>
             )}
-            
+
             {profileError && (
               <Alert variant="error">{profileError}</Alert>
             )}
@@ -162,7 +162,7 @@ export function ProfilePage() {
         {/* Change Password */}
         <Card className="p-6">
           <h2 className="text-xl font-semibold mb-4 text-white">Change Password</h2>
-          
+
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
             <div>
               <Label htmlFor="current-password">Current Password</Label>
@@ -203,7 +203,7 @@ export function ProfilePage() {
             {passwordSuccess && (
               <Alert variant="success">{passwordSuccess}</Alert>
             )}
-            
+
             {passwordError && (
               <Alert variant="error">{passwordError}</Alert>
             )}
@@ -222,7 +222,7 @@ export function ProfilePage() {
         {/* Account Information */}
         <Card className="p-6">
           <h2 className="text-xl font-semibold mb-4 text-white">Account Information</h2>
-          
+
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
               <span className="text-white/70">Account Status:</span>
@@ -234,14 +234,14 @@ export function ProfilePage() {
                 )}
               </span>
             </div>
-            
+
             <div className="flex justify-between">
               <span className="text-white/70">Account Type:</span>
               <span className="font-medium">
                 {user.is_admin ? 'Administrator' : 'User'}
               </span>
             </div>
-            
+
             {user.created_at && (
               <div className="flex justify-between">
                 <span className="text-white/70">Member Since:</span>

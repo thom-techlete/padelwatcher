@@ -24,10 +24,10 @@ interface Address {
 
 function formatAddress(addressJson: string | undefined): string {
   if (!addressJson) return 'No address available'
-  
+
   try {
     const address: Address = JSON.parse(addressJson)
-    
+
     const parts = []
     if (address.street) parts.push(address.street)
     if (address.postal_code && address.city) {
@@ -36,7 +36,7 @@ function formatAddress(addressJson: string | undefined): string {
       parts.push(address.city)
     }
     if (address.country) parts.push(address.country)
-    
+
     return parts.length > 0 ? parts.join(', ') : 'No address available'
   } catch {
     return addressJson // Fallback to raw string if parsing fails
@@ -70,7 +70,7 @@ export function LocationsPage() {
     queryKey: ['courts', expandedLocationIds],
     queryFn: async (): Promise<Record<number, Court[]>> => {
       if (expandedLocationIds.length === 0) return {}
-      
+
       const results: Record<number, Court[]> = {}
       await Promise.all(
         expandedLocationIds.map(async (locationId) => {
@@ -143,7 +143,7 @@ export function LocationsPage() {
             <MapPin className="h-12 w-12 text-white mb-4" />
             <h3 className="text-lg font-medium text-muted-foreground mb-2">No locations yet</h3>
             <p className="text-white text-center mb-6">
-              {isAuthenticated 
+              {isAuthenticated
                 ? "Add your first location to start tracking court availability"
                 : "Please log in to add locations"
               }
@@ -174,7 +174,7 @@ export function LocationsPage() {
           {locations.map((location: Location) => {
             const isExpanded = expandedLocations.has(location.id)
             const locationCourts = courtsData?.[location.id] || []
-            
+
             return (
               <Card key={location.id} className="hover:shadow-md transition-shadow">
                 <CardHeader>
@@ -200,7 +200,7 @@ export function LocationsPage() {
                     {location.address && <p><strong>Address:</strong> {formatAddress(location.address)}</p>}
                     {location.phone && <p><strong>Phone:</strong> {location.phone}</p>}
                   </div>
-                  
+
                   {isExpanded && (
                     <div className="mt-4 pt-4 border-t border-white/10">
                       <div className="flex items-center gap-2 mb-3">
@@ -209,7 +209,7 @@ export function LocationsPage() {
                           Courts ({locationCourts.length})
                         </span>
                       </div>
-                      
+
                       {locationCourts.length === 0 ? (
                         <p className="text-sm text-white/60">No courts found</p>
                       ) : (
@@ -241,7 +241,7 @@ export function LocationsPage() {
                       )}
                     </div>
                   )}
-                  
+
                   <div className="mt-4 flex space-x-2">
                     {/* View Details link removed - detail page not implemented */}
                   </div>

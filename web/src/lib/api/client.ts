@@ -12,7 +12,7 @@ export class ApiClient {
   private getHeaders(): HeadersInit {
     const token = tokenStorage.get()
     console.log('[ApiClient] Getting headers, token:', token ? `${token.substring(0, 20)}...` : 'null')
-    
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     }
@@ -35,13 +35,13 @@ export class ApiClient {
         // Import here to avoid circular dependencies
         const { tokenStorage } = await import('@/lib/auth')
         tokenStorage.remove()
-        
+
         // Redirect to login if not already there
         if (window.location.pathname !== '/login') {
           window.location.href = '/login'
         }
       }
-      
+
       const error: ApiError = await response.json().catch(() => ({
         error: 'An unexpected error occurred',
       }))
