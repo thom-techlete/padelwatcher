@@ -1,4 +1,4 @@
-name: Padlelwatcher deploy
+name: Padelwatcher deploy
 
 on:
   pull_request:
