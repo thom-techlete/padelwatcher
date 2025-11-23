@@ -1,0 +1,88 @@
+name: "Padel Watcher Setup and Test"
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    env:
+      SECRET_KEY: copilot-development-secret-key
+      DATABASE_URL: postgresql://pw_user:pw_db_password@localhost:5432/pw_db
+      FLASK_ENV: development
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: pw_user
+          POSTGRES_PASSWORD: pw_db_password
+          POSTGRES_DB: pw_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U pw_user -d pw_db"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client libpq-dev build-essential
+
+      - name: Upgrade pip and install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Wait for Postgres
+        env:
+          PGPASSWORD: pw_db_password
+        run: |
+          for i in $(seq 1 60); do
+            pg_isready -h localhost -p 5432 -U pw_user -d pw_db && exit 0
+            sleep 2
+          done
+          echo "Database not ready in time" >&2
+          exit 1
+
+      - name: Verify Postgres auth
+        env:
+          PGPASSWORD: pw_db_password
+        run: |
+          psql "host=localhost port=5432 user=pw_user dbname=pw_db" -c "select version();"
+
+      - name: Flask checks and migrations
+        env:
+          DATABASE_URL: postgresql://pw_user:pw_db_password@localhost:5432/pw_db
+          SECRET_KEY: copilot-development-secret-key
+        working-directory: ./backend
+        run: |
+          python -c "from app import create_app; app = create_app(); print('Flask app created successfully')"
+          alembic upgrade head
+
+      - name: Environment summary
+        run: |
+          python --version
+          psql --version
+          echo "DB: postgresql://pw_user:***@localhost:5432/pw_db"
