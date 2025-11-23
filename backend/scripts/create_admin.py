@@ -22,7 +22,7 @@ def create_admin_user():
         return
 
     # Create admin user
-    service.create_user(
+    admin_user = service.create_user(
         email="admin@padelwatcher.com",
         password_hash=generate_password_hash("admin123"),
         user_id="admin",
@@ -30,7 +30,7 @@ def create_admin_user():
     )
 
     # Auto-approve the admin
-    service.approve_user("admin", "system")
+    service.approve_user(admin_user.id, "system")
 
     print("Admin user created successfully!")
     print("Email: admin@padelwatcher.com")
