@@ -1,4 +1,4 @@
-name: SV Rap 8 CI/CD Pipeline
+name: Padlelwatcher deploy
 
 on:
   pull_request:
