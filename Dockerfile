@@ -4,9 +4,6 @@
 # Stage 1: Build frontend
 FROM node:20-alpine AS frontend-builder
 
-# Accept API base URL as build argument
-ARG VITE_API_BASE_URL
-
 WORKDIR /app/web
 
 COPY web/package*.json ./
@@ -14,8 +11,8 @@ RUN npm ci
 
 COPY web/ .
 
-# Set API base URL for production build
-ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+# Use empty string for production - nginx will proxy /api requests
+ENV VITE_API_BASE_URL=""
 
 RUN npm run build
 
