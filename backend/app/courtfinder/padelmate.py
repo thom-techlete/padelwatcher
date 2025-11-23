@@ -384,16 +384,16 @@ class PadelMateService:
             features = court_info.get("features", [])
 
             # Parse features - check for both positive and negative cases
-            # Default to True if not explicitly stated otherwise
+            # Default to False if not explicitly stated otherwise
             indoor = (
                 "indoor" in features
                 if any(x in features for x in ["indoor", "outdoor"])
-                else None
+                else False
             )
             double = (
                 "double" in features
                 if any(x in features for x in ["double", "single"])
-                else None
+                else False
             )
 
             # First, try to find existing court by the actual court name

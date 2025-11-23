@@ -135,6 +135,9 @@ def perform_court_search(
         Availability.duration == duration_minutes,
         Court.location_id.in_(location_ids),
         Availability.available,
+        Court.sport.in_(
+            ["PADEL", None]
+        ),  # Only include padel courts or courts with no sport specified
     ]
 
     # Filter by court type if specified
