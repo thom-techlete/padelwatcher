@@ -3,22 +3,35 @@ name: Padelwatcher deploy
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+      - "**.sh"
+      - ".gitignore"
+      - ".github/**"
+      - "scripts/**"
+      - "htmlcov/**"
+      - "*.egg-info/**"
+      - "coverage.xml"
+      - "pyproject.toml"
+      - "CODE_OF_CONDUCT.md"
+      - "CONTRIBUTING.md"
   pull_request:
     types: [closed]
     branches: [main]
     paths-ignore:
-      - 'docs/**'
-      - '**.md'
-      - '**.sh'
-      - '.gitignore'
-      - '.github/**'
-      - 'scripts/**'
-      - 'htmlcov/**'
-      - '*.egg-info/**'
-      - 'coverage.xml'
-      - 'pyproject.toml'
-      - 'CODE_OF_CONDUCT.md'
-      - 'CONTRIBUTING.md'
+      - "docs/**"
+      - "**.md"
+      - "**.sh"
+      - ".gitignore"
+      - ".github/**"
+      - "scripts/**"
+      - "htmlcov/**"
+      - "*.egg-info/**"
+      - "coverage.xml"
+      - "pyproject.toml"
+      - "CODE_OF_CONDUCT.md"
+      - "CONTRIBUTING.md"
   workflow_dispatch:
 
 permissions:
@@ -42,31 +55,6 @@ jobs:
       commit-sha: ${{ steps.tag.outputs.commit-sha }}
 
     steps:
-      - name: Check for relevant changes
-        uses: dorny/paths-filter@v2
-        id: changes
-        with:
-          filters: |
-            relevant:
-              - '!docs/**'
-              - '!**.md'
-              - '!**.sh'
-              - '!.gitignore'
-              - '!**.github/**'
-              - '!scripts/**'
-              - '!htmlcov/**'
-              - '!*.egg-info/**'
-              - '!coverage.xml'
-              - '!pyproject.toml'
-              - '!CODE_OF_CONDUCT.md'
-              - '!CONTRIBUTING.md'
-
-      - name: Skip build if only irrelevant files changed
-        if: github.event_name == 'push' && steps.changes.outputs.relevant == 'false'
-        run: |
-          echo "Only documentation/config files changed, skipping deployment"
-          exit 0
-
       - name: Checkout code
         uses: actions/checkout@v4
         with:
