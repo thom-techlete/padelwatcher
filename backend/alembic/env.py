@@ -19,13 +19,15 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 import sys
+import os
 from pathlib import Path
 
-# Add backend/app to Python path
-backend_path = Path(__file__).parent.parent / "app"
+# Add backend to Python path
+backend_path = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_path))
 
 from app.models import Base
+from app.config import SQLALCHEMY_DATABASE_URI
 
 target_metadata = Base.metadata
 
@@ -47,9 +49,8 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url,
+        url=SQLALCHEMY_DATABASE_URI,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -67,7 +68,7 @@ def run_migrations_online() -> None:
 
     """
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        {"sqlalchemy.url": SQLALCHEMY_DATABASE_URI},
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
