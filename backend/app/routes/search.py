@@ -210,6 +210,7 @@ def perform_court_search(
                     availability_date=str(avail.date),
                     availability_start_time=str(avail.start_time),
                     duration_minutes=avail.duration,
+                    location_timezone=location.timezone,
                 ),
             }
         )

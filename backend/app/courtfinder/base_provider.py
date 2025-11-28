@@ -100,6 +100,7 @@ class BaseCourtProvider(ABC):
         availability_date: str,
         availability_start_time: str,
         duration_minutes: int,
+        location_timezone: str | None = None,
     ) -> str | None:
         """
         Generate a provider-specific booking URL for an availability slot.
@@ -111,8 +112,9 @@ class BaseCourtProvider(ABC):
             tenant_id: Tenant/location ID from the provider
             resource_id: Resource/court ID from the provider
             availability_date: Date in YYYY-MM-DD format
-            availability_start_time: Start time in HH:MM format
+            availability_start_time: Start time in HH:MM format (local timezone)
             duration_minutes: Duration of the slot in minutes
+            location_timezone: Timezone of the location (e.g., 'Europe/Amsterdam')
 
         Returns:
             Booking URL string or None if URL cannot be generated

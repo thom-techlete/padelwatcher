@@ -178,6 +178,7 @@ class PlaytomicProvider(BaseCourtProvider):
         availability_date: str,
         availability_start_time: str,
         duration_minutes: int,
+        location_timezone: str | None = None,
     ) -> str | None:
         """Generate a Playtomic-specific booking URL for an availability slot.
 
@@ -188,8 +189,10 @@ class PlaytomicProvider(BaseCourtProvider):
             tenant_id: Playtomic tenant ID for the location
             resource_id: Playtomic resource ID for the court
             availability_date: Date in YYYY-MM-DD format
-            availability_start_time: Start time (HH:MM or HH:MM:SS format)
+            availability_start_time: Start time (HH:MM or HH:MM:SS format) in local timezone
             duration_minutes: Duration of the slot in minutes
+            location_timezone: Timezone of the location (e.g., 'Europe/Amsterdam')
+                               Required to convert local time back to UTC for the API
 
         Returns:
             Booking URL to Playtomic payment page or None if parameters invalid
@@ -200,7 +203,8 @@ class PlaytomicProvider(BaseCourtProvider):
                 'b1af00be-621f-4c07-9f86-331cd6691edd',
                 '2025-11-30',
                 '20:00',
-                90
+                90,
+                'Europe/Amsterdam'
             )
             # Returns: https://app.playtomic.com/login?return_url=...\
         """
@@ -214,8 +218,26 @@ class PlaytomicProvider(BaseCourtProvider):
             time_parts = str(availability_start_time).split(":")
             time_hm = f"{time_parts[0]}:{time_parts[1]}"
 
-            # Construct ISO 8601 timestamp in UTC with Z suffix
-            start_datetime_str = f"{availability_date}T{time_hm}:00.000Z"
+            # Convert local time to UTC for the Playtomic API
+            # The availability times are stored in local timezone but API expects UTC
+            if location_timezone:
+                local_tz = tz(location_timezone)
+                utc_tz = tz("UTC")
+
+                # Parse the local datetime
+                local_dt = datetime.strptime(
+                    f"{availability_date} {time_hm}", "%Y-%m-%d %H:%M"
+                )
+                local_dt = local_tz.localize(local_dt)
+
+                # Convert to UTC
+                utc_dt = local_dt.astimezone(utc_tz)
+
+                # Format as ISO 8601 UTC timestamp
+                start_datetime_str = utc_dt.strftime("%Y-%m-%dT%H:%M:00.000Z")
+            else:
+                # Fallback: assume time is already in UTC (legacy behavior)
+                start_datetime_str = f"{availability_date}T{time_hm}:00.000Z"
 
             # Encode the start timestamp (this will encode colons as %3A)
             encoded_start = quote(start_datetime_str, safe="")
