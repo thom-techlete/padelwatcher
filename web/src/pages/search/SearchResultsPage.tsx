@@ -18,6 +18,12 @@ interface SearchParams {
   force_live_search?: string
 }
 
+interface Address {
+  street?: string
+  city?: string
+  postal_code?: string
+}
+
 export function SearchResultsPage() {
   const navigate = useNavigate()
   const params = useSearch({ from: '/search-results' }) as SearchParams
@@ -52,17 +58,25 @@ export function SearchResultsPage() {
     enabled: !!params.date,
   })
 
-  // Helper function to format address from JSON
-  const formatAddress = (addressJson: string) => {
+  // Helper function to format address from JSON or object
+  const formatAddress = (address: string | Address) => {
     try {
-      const address = JSON.parse(addressJson)
+      let addressObj: Address
+
+      // Handle both JSON string and object formats
+      if (typeof address === 'string') {
+        addressObj = JSON.parse(address)
+      } else {
+        addressObj = address
+      }
+
       const parts = []
-      if (address.street) parts.push(address.street)
-      if (address.city) parts.push(address.city)
-      if (address.postal_code) parts.push(address.postal_code)
+      if (addressObj.street) parts.push(addressObj.street)
+      if (addressObj.city) parts.push(addressObj.city)
+      if (addressObj.postal_code) parts.push(addressObj.postal_code)
       return parts.join(', ')
     } catch {
-      return addressJson
+      return typeof address === 'string' ? address : 'Address not available'
     }
   }
 
@@ -255,15 +269,15 @@ export function SearchResultsPage() {
                       <div className="space-y-3 flex-1">
                         <h4 className="font-medium text-white">Available Slots ({courtItem.availabilities.length})</h4>
                         <div className="space-y-2 max-h-48 overflow-y-auto">
-                          {courtItem.availabilities.map((availability) => (
+                          {courtItem.availabilities.map((availability: { id: number; date: string; start_time: string; end_time: string; price?: number; booking_url?: string }) => (
                             <div
                               key={availability.id}
                               className="p-3 bg-white/10 rounded-md border border-white/20"
                             >
                               <div className="space-y-2">
                                 <div className="flex items-center justify-between">
-                                  <div className="flex items-center space-x-2">
-                                    <Clock className="h-4 w-4 text-accent-400" />
+                                  <div className="flex items-center space-x-2 flex-1">
+                                    <Clock className="h-4 w-4 text-accent-400 flex-shrink-0" />
                                     <div>
                                       <div className="text-sm font-semibold text-white">
                                         {formatTime(availability.start_time)} - {formatTime(availability.end_time)}
@@ -273,14 +287,27 @@ export function SearchResultsPage() {
                                       </div>
                                     </div>
                                   </div>
-                                  {availability.price && (
-                                    <div className="text-right">
-                                      <div className="flex items-center text-sm font-bold text-accent-400">
-                                        <Euro className="h-4 w-4 mr-1" />
-                                        {availability.price}
+                                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                                    {availability.price && (
+                                      <div className="text-right">
+                                        <div className="flex items-center text-sm font-bold text-accent-400">
+                                          <Euro className="h-4 w-4 mr-1" />
+                                          {availability.price}
+                                        </div>
                                       </div>
-                                    </div>
-                                  )}
+                                    )}
+                                    {availability.booking_url && (
+                                      <a
+                                        href={availability.booking_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-accent-400 hover:text-accent-300 transition-colors flex-shrink-0"
+                                        title="Book this slot"
+                                      >
+                                        <ExternalLink className="h-5 w-5" />
+                                      </a>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </div>

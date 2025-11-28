@@ -6,23 +6,60 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 from sqlalchemy import and_
 
+from app.models import Availability, Court, Location
+from app.services.availability_service import availability_service
+from app.services.location_service import location_service
+from app.services.search_service import search_service
+from app.utils import get_provider, token_required, validate_request_fields
+
 search_bp = Blueprint("search", __name__, url_prefix="/api/search")
 logger = logging.getLogger(__name__)
 
 
-def get_services():
-    """Import services here to avoid circular imports"""
-    from app.courtfinder.padelmate import PadelMateService
-    from app.services import AvailabilityService
+def live_fetch_availabilities_locations(
+    live_locations,
+    search_date,
+    start_time,
+    end_time,
+    duration_minutes,
+    court_type,
+    court_config,
+    sport,
+):
+    """Fetch and store availabilities for multiple locations"""
+    added, updated = 0, 0
+    date_str = search_date.strftime("%Y-%m-%d")
+    for location_id, search_hash in live_locations.items():
+        location = location_service.get_location_by_id(location_id)
+        provider = get_provider(location.provider)
+        slots_stats = provider.fetch_and_store_availability(
+            location_id, date_str, sport
+        )
+        added += slots_stats["added"]
+        updated += slots_stats["updated"]
 
-    return AvailabilityService(), PadelMateService()
+        # Record the search
+        try:
+            search_service.create_search_request_record(
+                search_hash=search_hash,
+                date=search_date,
+                start_time=start_time,
+                end_time=end_time,
+                duration_minutes=duration_minutes,
+                court_type=court_type,
+                court_config=court_config,
+                location_id=location_id,
+                live_search=True,
+                slots_found=added + updated,
+            )
+        except Exception as record_error:
+            logger.error(f"[SEARCH] Failed to record search request: {record_error}")
 
+    logger.info(
+        f"[SEARCH] Added {added} new slots from API and updated {updated} slots"
+    )
 
-def token_required(f):
-    """Import from auth module"""
-    from app.routes.auth import token_required as auth_token_required
-
-    return auth_token_required(f)
+    return added, updated
 
 
 def perform_court_search(
@@ -33,6 +70,7 @@ def perform_court_search(
     court_type,
     court_config,
     location_ids,
+    sport="PADEL",
     force_live=False,
 ):
     """
@@ -51,251 +89,157 @@ def perform_court_search(
     Returns:
         list of court results with availabilities
     """
-    import uuid
-
-    from app.models import Availability, Court, Location
-
-    availability_service, padel_service = get_services()
-
     logger.info(
         f"[SEARCH] Searching for courts: date={search_date}, time={start_time}-{end_time}, duration={duration_minutes}min, type={court_type}, config={court_config}"
     )
 
-    # Generate search hash for caching
-    search_hash = availability_service.generate_search_hash(
+    live_locations = {}
+    for loc_id in location_ids:
+        search_hash = search_service.generate_search_hash(
+            search_date,
+            loc_id,
+        )
+        recent_live_search = search_service.get_recent_live_search(
+            search_hash, max_age_minutes=15
+        )
+
+        if not force_live and recent_live_search:
+            # If not forcing live search and cache exists, use cached data
+            logger.info(f"[SEARCH] Using cached search data for location {loc_id}")
+        else:
+            live_locations[loc_id] = search_hash
+            # Fetch fresh availability data from API
+            logger.info(f"[SEARCH] Fetching live availability for location: {loc_id}")
+
+    live_fetch_availabilities_locations(
+        live_locations,
         search_date,
         start_time,
         end_time,
         duration_minutes,
         court_type,
         court_config,
-        location_ids,
+        sport,
     )
 
-    # If not forcing live search, check for cached results
-    if not force_live:
-        recent_live_search = availability_service.get_recent_live_search(
-            search_hash, max_age_minutes=15
-        )
-        if recent_live_search:
-            logger.info(
-                f"[SEARCH] Using cached data from recent live search (performed {recent_live_search.performed_at})"
-            )
-
-    # Always refresh court metadata before searching
-    logger.info("[SEARCH] Refreshing court metadata for all locations")
-    for location in availability_service.get_all_locations():
-        try:
-            padel_service.add_location_by_slug(location.slug)
-        except Exception as e:
-            logger.warning(
-                f"[SEARCH] Could not refresh court metadata for {location.name}: {e}"
-            )
-
-    # Fetch fresh availability data from API
-    logger.info(f"[SEARCH] Fetching live availability for date: {search_date}")
-    api_date_str = search_date.strftime("%Y-%m-%d")
-    total_slots = padel_service.fetch_and_store_all_availability(
-        date_str=api_date_str, sport_id="PADEL"
-    )
-    logger.info(f"[SEARCH] Fetched {total_slots} total slots from API")
-
-    # After fetching, update court metadata again
-    logger.info("[SEARCH] Updating court metadata after availability fetch")
-    for location in availability_service.get_all_locations():
-        try:
-            padel_service.add_location_by_slug(location.slug)
-        except Exception as e:
-            logger.warning(
-                f"[SEARCH] Could not update court metadata for {location.name}: {e}"
-            )
-
-    # Record the search
-    try:
-        availability_service.create_search_request_record(
-            search_hash=search_hash,
-            date=search_date,
-            start_time=start_time,
-            end_time=end_time,
-            duration_minutes=duration_minutes,
-            court_type=court_type,
-            court_config=court_config,
-            location_ids=location_ids,
-            live_search=True,
-            slots_found=total_slots,
-        )
-    except Exception as record_error:
-        logger.error(f"[SEARCH] Failed to record search request: {record_error}")
-
-    # Build filter conditions - find availabilities that start within the time window
+    # Build availability filters - find availabilities that start within the time window
     filters = [
         Availability.date == search_date,
         Availability.start_time >= start_time,
         Availability.start_time <= end_time,
         Availability.duration == duration_minutes,
-        Court.location_id.in_(location_ids),
         Availability.available,
-        Court.sport.in_(
-            ["PADEL", None]
-        ),  # Only include padel courts or courts with no sport specified
+        Court.location_id.in_(location_ids),
     ]
 
     # Filter by court type if specified
     if court_type == "indoor":
         filters.append(Court.indoor)
     elif court_type == "outdoor":
-        filters.append(~Court.indoor)
+        filters.append(not Court.indoor)
 
     # Filter by court configuration if specified
     if court_config == "single":
-        filters.append(~Court.double)
+        filters.append(not Court.double)
     elif court_config == "double":
         filters.append(Court.double)
 
-    # Query availabilities from database
+    # Query availabilities with joined court and location info, ordered by start time
     query = (
-        availability_service.session.query(Availability)
-        .join(Court)
-        .join(Location)
+        availability_service.session.query(Availability, Court, Location)
+        .join(Court, Availability.court_id == Court.id)
+        .join(Location, Court.location_id == Location.id)
         .filter(and_(*filters))
+        .order_by(Availability.start_time)
     )
-    availabilities = query.all()
+
+    results_tuples = query.all()
     logger.info(
-        f"[SEARCH] Found {len(availabilities)} availabilities matching criteria"
+        f"[SEARCH] Found {len(results_tuples)} availabilities matching criteria"
     )
 
-    # Group results by court
-    court_results = {}
-    for avail in availabilities:
-        court = (
-            availability_service.session.query(Court)
-            .filter(Court.id == avail.court_id)
-            .first()
-        )
-        location = (
-            availability_service.session.query(Location)
-            .filter(Location.id == court.location_id)
-            .first()
-        )
+    # Group by location, then by court, with availabilities ordered by start time
+    locations_dict = {}
 
-        # If court name is a UUID, try to get the proper name from Playtomic API
-        court_name = court.name
-        try:
-            uuid.UUID(court_name)
-            # This is a UUID-named court, fetch proper name from Playtomic
-            logger.info(
-                f"[SEARCH] Found UUID court name {court_name}, fetching proper name for location {location.slug}"
-            )
-            try:
-                club_data = padel_service.fetch_club_info(
-                    location.slug, search_date.strftime("%Y-%m-%d")
-                )
-                if club_data:
-                    tenant = (
-                        club_data.get("props", {})
-                        .get("pageProps", {})
-                        .get("tenant", {})
-                    )
-                    resources = tenant.get("resources", [])
-                    # Find the court with matching resourceId (UUID)
-                    for resource in resources:
-                        if str(resource.get("resourceId")) == court_name:
-                            proper_name = resource.get("name")
-                            if proper_name:
-                                court_name = proper_name
-                                logger.info(
-                                    f"[SEARCH] Resolved court name from {court.name} to {court_name}"
-                                )
-                                # Update the court name in database for future use
-                                court.name = court_name
-                                availability_service.session.commit()
-                            break
-            except Exception as e:
-                logger.warning(
-                    f"[SEARCH] Failed to resolve court name for {court_name}: {e}"
-                )
-        except ValueError:
-            # Not a UUID, use the name as-is
-            pass
+    for avail, court, location in results_tuples:
+        location_id = location.id
+        court_id = court.id
 
-        # Use only court.id as the key to ensure uniqueness
-        court_key = court.id
-        if court_key not in court_results:
-            court_results[court_key] = {
-                "court": {
-                    "id": court.id,
-                    "name": court_name,
-                    "court_type": court.sport or "standard",
-                    "is_indoor": court.indoor or False,
-                    "is_double": court.double or False,
-                },
+        # Initialize location if not exists
+        if location_id not in locations_dict:
+            locations_dict[location_id] = {
                 "location": {
                     "id": location.id,
                     "name": location.name,
                     "slug": location.slug,
                     "address": location.address,
                 },
+                "courts": {},
+                "provider": get_provider(
+                    location.provider
+                ),  # Get provider instance for this location
+            }
+
+        # Get provider from location dict
+        provider = locations_dict[location_id]["provider"]
+
+        # Initialize court if not exists
+        if court_id not in locations_dict[location_id]["courts"]:
+            locations_dict[location_id]["courts"][court_id] = {
+                "court": {
+                    "id": court.id,
+                    "name": court.name,
+                    "court_type": court.sport or "standard",
+                    "is_indoor": court.indoor or False,
+                    "is_double": court.double or False,
+                },
                 "availabilities": [],
             }
 
-        court_results[court_key]["availabilities"].append(
+        # Add availability to court
+        locations_dict[location_id]["courts"][court_id]["availabilities"].append(
             {
                 "id": avail.id,
                 "date": str(avail.date),
                 "start_time": str(avail.start_time),
                 "end_time": str(avail.end_time),
                 "price": avail.price,
+                "booking_url": provider.generate_booking_url(
+                    tenant_id=location.tenant_id,
+                    resource_id=court.resource_id,
+                    availability_date=str(avail.date),
+                    availability_start_time=str(avail.start_time),
+                    duration_minutes=avail.duration,
+                ),
             }
         )
 
-    # Group results by location
-    locations_dict = {}
-    for court_data in court_results.values():
-        location_id = court_data["location"]["id"]
-        if location_id not in locations_dict:
-            locations_dict[location_id] = {
-                "location": court_data["location"],
-                "courts": [],
-            }
+    # Convert to final format: list of locations with courts
+    results = []
+    for _location_id, location_data in sorted(
+        locations_dict.items(), key=lambda x: x[1]["location"]["name"]
+    ):
+        courts_list = []
+        for _court_id, court_data in location_data["courts"].items():
+            courts_list.append(court_data)
 
-        # Add court with its availabilities to the location
-        locations_dict[location_id]["courts"].append(
-            {
-                "court": court_data["court"],
-                "availabilities": court_data["availabilities"],
-            }
-        )
-
-    # Convert to list and sort by location name
-    results = sorted(locations_dict.values(), key=lambda x: x["location"]["name"])
+        results.append({"location": location_data["location"], "courts": courts_list})
 
     logger.info(
-        f"[SEARCH] Returning {len(results)} locations with {len(court_results)} courts total"
+        f"[SEARCH] Returning {len(results)} locations with {sum(len(loc['courts']) for loc in results)} courts total"
     )
     return results
 
 
 @search_bp.route("/available", methods=["POST"])
 @token_required
+@validate_request_fields(["date", "start_time", "end_time"])
 def search_available_courts(current_user):
     """Search for available courts on a specific date within a time range"""
     try:
-        from app.models import Location
-
-        availability_service, _ = get_services()
         data = request.get_json()
-
-        required_fields = ["date", "start_time", "end_time"]
-        if not all(field in data for field in required_fields):
-            return (
-                jsonify({"error": f'Required fields: {", ".join(required_fields)}'}),
-                400,
-            )
-
-        # Parse date in DD/MM/YYYY format
-        date_str = data["date"]
         try:
-            search_date = datetime.strptime(date_str, "%d/%m/%Y").date()
+            search_date = datetime.strptime(data["date"], "%d/%m/%Y").date()
         except ValueError:
             return jsonify({"error": "Date must be in DD/MM/YYYY format"}), 400
 
@@ -308,10 +252,11 @@ def search_available_courts(current_user):
         except ValueError:
             return jsonify({"error": "Times must be in HH:MM format"}), 400
 
-        duration_minutes = data.get("duration_minutes", 60)
+        duration_minutes = data.get("duration_minutes", 90)
         court_type = data.get("court_type", "all")
         court_config = data.get("court_config", "all")
         force_live_search = data.get("force_live_search", False)
+        sport = data.get("sport", "PADEL")
 
         # Get location_ids, default to all locations if not specified
         location_ids = data.get("location_ids")
@@ -319,8 +264,7 @@ def search_available_courts(current_user):
             isinstance(location_ids, list) and len(location_ids) == 0
         ):
             # Get all locations
-            all_locations = availability_service.session.query(Location).all()
-            location_ids = [loc.id for loc in all_locations]
+            location_ids = [loc.id for loc in location_service.get_all_locations()]
 
         # Perform the search
         results = perform_court_search(
@@ -331,6 +275,7 @@ def search_available_courts(current_user):
             court_type=court_type,
             court_config=court_config,
             location_ids=location_ids,
+            sport=sport,
             force_live=force_live_search,
         )
 

@@ -75,11 +75,27 @@ export function SearchOrdersPage() {
     const [year, month, day] = order.date.split('-')
     const formattedDate = `${day}/${month}/${year}`
 
+    // Ensure times are in HH:MM format (strip any seconds if present)
+    const formatTime = (timeStr: string) => {
+      // If it's already HH:MM, return as is
+      if (timeStr.match(/^\d{2}:\d{2}$/)) {
+        return timeStr
+      }
+      // If it's HH:MM:SS, extract HH:MM
+      if (timeStr.match(/^\d{2}:\d{2}:\d{2}$/)) {
+        return timeStr.substring(0, 5)
+      }
+      return timeStr
+    }
+
+    const startTime = formatTime(order.start_time)
+    const endTime = formatTime(order.end_time)
+
     // Navigate to search results page with order parameters
     const searchParams = new URLSearchParams({
       date: formattedDate,
-      start_time: order.start_time,
-      end_time: order.end_time,
+      start_time: startTime,
+      end_time: endTime,
       duration_minutes: order.duration_minutes.toString(),
       court_type: order.court_type,
       court_config: order.court_config,
@@ -117,6 +133,20 @@ export function SearchOrdersPage() {
       case 'single': return 'Single'
       case 'double': return 'Double'
       default: return 'All'
+    }
+  }
+
+  const formatLastCheckTime = (timestamp: string | undefined) => {
+    if (!timestamp) return 'Never'
+    try {
+      const date = parseISO(timestamp)
+      // Get current user's timezone offset
+      const offset = new Date().getTimezoneOffset()
+      // Adjust the date by adding the offset (getTimezoneOffset returns negative for ahead of UTC)
+      const adjustedDate = new Date(date.getTime() - offset * 60 * 1000)
+      return format(adjustedDate, 'HH:mm')
+    } catch {
+      return 'Invalid'
     }
   }
 
@@ -191,7 +221,7 @@ export function SearchOrdersPage() {
                       </Badge>
                       {order.last_check_at && (
                         <Badge variant="outline" className="text-xs">
-                          Last check: {format(parseISO(order.last_check_at), 'HH:mm')}
+                          Last check: {formatLastCheckTime(order.last_check_at)}
                         </Badge>
                       )}
                     </div>

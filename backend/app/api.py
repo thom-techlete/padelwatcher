@@ -14,7 +14,7 @@ import app.scheduler
 
 # Import scheduler to initialize it
 from app.config import CORS_ORIGINS, DEBUG, HOST, JWT_EXPIRATION_HOURS, PORT, SECRET_KEY
-from app.courtfinder.padelmate import PadelMateService
+from app.courtfinder import PadelMateService
 from app.routes.admin import admin_bp
 from app.routes.auth import auth_bp
 from app.routes.locations import locations_bp

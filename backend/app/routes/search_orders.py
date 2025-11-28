@@ -1,53 +1,17 @@
 """Search Orders routes blueprint"""
 
-import json
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 
+from app.routes.search import perform_court_search
+from app.services.search_order_service import search_order_service
+from app.services.user_service import user_service
+from app.utils import token_required
+
 search_orders_bp = Blueprint("search_orders", __name__, url_prefix="/api/search-orders")
 logger = logging.getLogger(__name__)
-
-
-def get_services():
-    """Import services here to avoid circular imports"""
-    from app.courtfinder.padelmate import PadelMateService
-    from app.services import AvailabilityService
-
-    return AvailabilityService(), PadelMateService()
-
-
-def token_required(f):
-    """Import from auth module"""
-    from app.routes.auth import token_required as auth_token_required
-
-    return auth_token_required(f)
-
-
-def perform_court_search(
-    search_date,
-    start_time,
-    end_time,
-    duration_minutes,
-    court_type,
-    court_config,
-    location_ids,
-    force_live=False,
-):
-    """Import from search module"""
-    from app.routes.search import perform_court_search as search_perform_court_search
-
-    return search_perform_court_search(
-        search_date,
-        start_time,
-        end_time,
-        duration_minutes,
-        court_type,
-        court_config,
-        location_ids,
-        force_live,
-    )
 
 
 @search_orders_bp.route("", methods=["POST"])
@@ -55,9 +19,6 @@ def perform_court_search(
 def create_search_order(current_user):
     """Create a new search order for automated availability checking"""
     try:
-        from app.models import SearchOrder
-
-        availability_service, _ = get_services()
         data = request.get_json()
 
         required_fields = [
@@ -78,21 +39,17 @@ def create_search_order(current_user):
         start_time_obj = datetime.strptime(data["start_time"], "%H:%M").time()
         end_time_obj = datetime.strptime(data["end_time"], "%H:%M").time()
 
-        # Create search order
-        search_order = SearchOrder(
-            user_id=current_user,
-            location_ids=json.dumps(data["location_ids"]),
+        # Create search order using the service
+        search_order = search_order_service.create_search_order(
             date=date_obj,
-            start_time=start_time_obj,
-            end_time=end_time_obj,
-            duration_minutes=int(data["duration_minutes"]),
+            start_time_range=start_time_obj,
+            end_time_range=end_time_obj,
+            duration=int(data["duration_minutes"]),
+            user_id=current_user,
+            location_ids=data["location_ids"],
             court_type=data.get("court_type", "all"),
             court_config=data.get("court_config", "all"),
-            is_active=data.get("is_active", True),
         )
-
-        availability_service.session.add(search_order)
-        availability_service.session.commit()
 
         return (
             jsonify(
@@ -100,7 +57,11 @@ def create_search_order(current_user):
                     "message": "Search order created successfully",
                     "id": search_order.id,
                     "user_id": search_order.user_id,
-                    "location_ids": json.loads(search_order.location_ids),
+                    "location_ids": (
+                        list(search_order.location_ids)
+                        if search_order.location_ids
+                        else []
+                    ),
                     "date": str(search_order.date),
                     "start_time": str(search_order.start_time),
                     "end_time": str(search_order.end_time),
@@ -133,15 +94,7 @@ def create_search_order(current_user):
 def get_user_search_orders(current_user):
     """Get all search orders for the current user"""
     try:
-        from app.models import SearchOrder
-
-        availability_service, _ = get_services()
-
-        search_orders = (
-            availability_service.session.query(SearchOrder)
-            .filter(SearchOrder.user_id == current_user)
-            .all()
-        )
+        search_orders = search_order_service.get_search_orders_by_user(current_user)
 
         orders = []
         for order in search_orders:
@@ -149,7 +102,9 @@ def get_user_search_orders(current_user):
                 {
                     "id": order.id,
                     "user_id": order.user_id,
-                    "location_ids": json.loads(order.location_ids),
+                    "location_ids": (
+                        list(order.location_ids) if order.location_ids else []
+                    ),
                     "date": str(order.date),
                     "start_time": str(order.start_time),
                     "end_time": str(order.end_time),
@@ -176,15 +131,7 @@ def get_user_search_orders(current_user):
 def get_search_order_results(current_user, order_id):
     """Get a specific search order"""
     try:
-        from app.models import SearchOrder
-
-        availability_service, _ = get_services()
-
-        search_order = (
-            availability_service.session.query(SearchOrder)
-            .filter(SearchOrder.id == order_id)
-            .first()
-        )
+        search_order = search_order_service.get_search_order(order_id)
 
         if not search_order:
             return jsonify({"error": "Search order not found"}), 404
@@ -197,7 +144,11 @@ def get_search_order_results(current_user, order_id):
                 {
                     "id": search_order.id,
                     "user_id": search_order.user_id,
-                    "location_ids": json.loads(search_order.location_ids),
+                    "location_ids": (
+                        list(search_order.location_ids)
+                        if search_order.location_ids
+                        else []
+                    ),
                     "date": str(search_order.date),
                     "start_time": str(search_order.start_time),
                     "end_time": str(search_order.end_time),
@@ -230,15 +181,7 @@ def get_search_order_results(current_user, order_id):
 def update_search_order(current_user, order_id):
     """Update a search order (e.g., activate/deactivate)"""
     try:
-        from app.models import SearchOrder
-
-        availability_service, _ = get_services()
-
-        search_order = (
-            availability_service.session.query(SearchOrder)
-            .filter(SearchOrder.id == order_id)
-            .first()
-        )
+        search_order = search_order_service.get_search_order(order_id)
 
         if not search_order:
             return jsonify({"error": "Search order not found"}), 404
@@ -249,33 +192,40 @@ def update_search_order(current_user, order_id):
         data = request.get_json()
 
         # Update allowed fields
+        update_data = {}
         if "is_active" in data:
-            search_order.is_active = data["is_active"]
+            update_data["is_active"] = data["is_active"]
         if "location_ids" in data:
-            search_order.location_ids = json.dumps(data["location_ids"])
+            update_data["location_ids"] = data["location_ids"]
         if "date" in data:
-            search_order.date = datetime.strptime(data["date"], "%Y-%m-%d").date()
+            update_data["date"] = datetime.strptime(data["date"], "%Y-%m-%d").date()
         if "start_time" in data:
-            search_order.start_time = datetime.strptime(
+            update_data["start_time"] = datetime.strptime(
                 data["start_time"], "%H:%M"
             ).time()
         if "end_time" in data:
-            search_order.end_time = datetime.strptime(data["end_time"], "%H:%M").time()
+            update_data["end_time"] = datetime.strptime(
+                data["end_time"], "%H:%M"
+            ).time()
         if "duration_minutes" in data:
-            search_order.duration_minutes = int(data["duration_minutes"])
+            update_data["duration_minutes"] = int(data["duration_minutes"])
         if "court_type" in data:
-            search_order.court_type = data["court_type"]
+            update_data["court_type"] = data["court_type"]
         if "court_config" in data:
-            search_order.court_config = data["court_config"]
+            update_data["court_config"] = data["court_config"]
 
-        availability_service.session.commit()
+        search_order = search_order_service.update_search_order(order_id, **update_data)
 
         return (
             jsonify(
                 {
                     "id": search_order.id,
                     "user_id": search_order.user_id,
-                    "location_ids": json.loads(search_order.location_ids),
+                    "location_ids": (
+                        list(search_order.location_ids)
+                        if search_order.location_ids
+                        else []
+                    ),
                     "date": str(search_order.date),
                     "start_time": str(search_order.start_time),
                     "end_time": str(search_order.end_time),
@@ -308,15 +258,7 @@ def update_search_order(current_user, order_id):
 def cancel_search_order(current_user, order_id):
     """Delete a search order"""
     try:
-        from app.models import SearchOrder
-
-        availability_service, _ = get_services()
-
-        search_order = (
-            availability_service.session.query(SearchOrder)
-            .filter(SearchOrder.id == order_id)
-            .first()
-        )
+        search_order = search_order_service.get_search_order(order_id)
 
         if not search_order:
             return jsonify({"error": "Search order not found"}), 404
@@ -324,8 +266,7 @@ def cancel_search_order(current_user, order_id):
         if search_order.user_id != current_user:
             return jsonify({"error": "Unauthorized"}), 403
 
-        availability_service.session.delete(search_order)
-        availability_service.session.commit()
+        search_order_service.delete_search_order(order_id)
 
         return jsonify({"message": "Search order deleted"}), 200
     except Exception as e:
@@ -338,22 +279,15 @@ def cancel_search_order(current_user, order_id):
 def execute_search_order(current_user, order_id):
     """Manually execute a search order (for testing or immediate check)"""
     try:
-        from app.models import SearchOrder, User
-
-        availability_service, _ = get_services()
         from app.email_service import email_service
 
-        search_order = (
-            availability_service.session.query(SearchOrder)
-            .filter(SearchOrder.id == order_id)
-            .first()
-        )
+        search_order = search_order_service.get_search_order(order_id)
 
         if not search_order:
             return jsonify({"error": "Search order not found"}), 404
 
         # Check if user is admin or owns the order
-        user = availability_service.get_user_by_id(current_user)
+        user = user_service.get_user_by_id(current_user)
         if not user:
             return jsonify({"error": "User not found"}), 404
 
@@ -367,7 +301,7 @@ def execute_search_order(current_user, order_id):
         duration_minutes = search_order.duration_minutes
         court_type = search_order.court_type
         court_config = search_order.court_config
-        location_ids = json.loads(search_order.location_ids)
+        location_ids = search_order.location_ids
 
         logger.info(
             f"[EXECUTE] Executing search order {order_id} - date: {search_date}, time: {start_time}-{end_time}"
@@ -386,8 +320,7 @@ def execute_search_order(current_user, order_id):
         )
 
         # Update last_check_at
-        search_order.last_check_at = datetime.now(UTC)
-        availability_service.session.commit()
+        search_order_service.update_search_order_last_check(order_id)
 
         logger.info(
             f"[EXECUTE] Search order {order_id} completed - found {len(results)} courts"
@@ -400,11 +333,7 @@ def execute_search_order(current_user, order_id):
             )
 
             # Get user to get their email
-            order_user = (
-                availability_service.session.query(User)
-                .filter(User.user_id == search_order.user_id)
-                .first()
-            )
+            order_user = user_service.get_user_by_id(search_order.user_id)
 
             if order_user and order_user.email:
                 # Prepare search parameters for email
@@ -427,19 +356,23 @@ def execute_search_order(current_user, order_id):
                 # Convert results to courts_found format for email (limit to 5 courts)
                 courts_found = []
                 for result in results:
-                    court = result.get("court", {})
-                    location = result.get("location", {})
-                    for avail in result.get("availabilities", []):
-                        courts_found.append(
-                            {
-                                "location": location.get("name", "Unknown"),
-                                "court": court.get("name", "Unknown"),
-                                "date": avail.get("date", ""),
-                                "timeslot": f"{avail.get('start_time', '')}-{avail.get('end_time', '')}",
-                                "price": avail.get("price", "N/A"),
-                                "provider": "PadelMate",
-                            }
-                        )
+                    for court_data in result.get("courts", []):
+                        court = court_data.get("court", {})
+                        location = result.get("location", {})
+                        for avail in court_data.get("availabilities", []):
+                            courts_found.append(
+                                {
+                                    "location": location.get("name", "Unknown"),
+                                    "court": court.get("name", "Unknown"),
+                                    "date": avail.get("date", ""),
+                                    "timeslot": f"{avail.get('start_time', '')}-{avail.get('end_time', '')}",
+                                    "price": avail.get("price", "N/A"),
+                                    "provider": "PadelMate",
+                                    "booking_url": avail.get("booking_url"),
+                                }
+                            )
+                            if len(courts_found) >= 5:
+                                break
                         if len(courts_found) >= 5:
                             break
                     if len(courts_found) >= 5:

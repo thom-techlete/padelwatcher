@@ -14,7 +14,7 @@ export function AddLocationForm({ onSuccess }: AddLocationFormProps) {
   const queryClient = useQueryClient()
 
   const mutation = useMutation({
-    mutationFn: (processedSlug: string) => locationApi.create(processedSlug),
+    mutationFn: (data: { slug: string; provider: string }) => locationApi.create(data.slug, data.provider),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['locations'] })
       setSlug('')
@@ -30,20 +30,41 @@ export function AddLocationForm({ onSuccess }: AddLocationFormProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!slug.trim()) {
-      setError('Please enter a location slug')
+      setError('Please enter a location URL')
       return
     }
 
-    let processedSlug = slug.trim()
-    // Extract slug from full URL if provided
-    if (processedSlug.includes('/clubs/')) {
-      const parts = processedSlug.split('/clubs/')
-      if (parts.length > 1) {
-        processedSlug = parts[1].split(/[/?]/)[0] // Take everything before / or ?
+    const url = slug.trim()
+    let processedSlug = url
+    let provider: string | null = null
+
+    // Extract provider and slug from URL
+    try {
+      const urlObj = new URL(url)
+      const hostname = urlObj.hostname // e.g., www.playtomic.com or playtomic.com
+
+      // Extract provider (domain name without www or .com)
+      const parts = hostname.replace('www.', '').split('.')
+      provider = parts[0] // e.g., playtomic
+
+      // Extract slug from path
+      if (urlObj.pathname.includes('/clubs/')) {
+        const pathParts = urlObj.pathname.split('/clubs/')
+        if (pathParts.length > 1) {
+          processedSlug = pathParts[1].split(/[/?]/)[0]
+        }
       }
+    } catch {
+      setError('Please enter a valid URL')
+      return
     }
 
-    mutation.mutate(processedSlug)
+    if (!processedSlug) {
+      setError('Could not extract location slug from URL')
+      return
+    }
+
+    mutation.mutate({ slug: processedSlug, provider: provider || '' })
   }
 
   return (
@@ -56,18 +77,18 @@ export function AddLocationForm({ onSuccess }: AddLocationFormProps) {
 
       <div className="space-y-2">
         <label htmlFor="slug" className="text-sm font-medium text-white">
-          Location Slug
+          Location URL
         </label>
         <Input
           id="slug"
-          placeholder="e.g., club-name-city or https://playtomic.com/clubs/club-name-city"
+          placeholder="e.g., https://playtomic.com/clubs/club-name-city"
           value={slug}
           onChange={(e) => setSlug(e.target.value)}
           disabled={mutation.isPending}
           className="text-white"
         />
         <p className="text-xs text-white/60">
-          Enter the slug identifier or full Playtomic URL for the location (slug will be extracted automatically from URLs)
+          Enter the full Playtomic URL for the location (provider and slug will be extracted automatically)
         </p>
       </div>
 

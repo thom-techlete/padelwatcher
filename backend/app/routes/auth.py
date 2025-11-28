@@ -2,77 +2,23 @@
 
 import logging
 from datetime import UTC, datetime, timedelta
-from functools import wraps
 
 import jwt
 from flask import Blueprint, jsonify, request
 from werkzeug.security import generate_password_hash
 
+from app.config import JWT_EXPIRATION_HOURS, SECRET_KEY
+from app.services.user_service import user_service
+from app.utils import token_required
+
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 logger = logging.getLogger(__name__)
-
-
-def get_services():
-    """Import services here to avoid circular imports"""
-    from app.services import AvailabilityService
-
-    return AvailabilityService()
-
-
-def token_required(f):
-    """Authentication decorator for protected routes"""
-
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        # Allow OPTIONS requests (preflight) to pass through
-        if request.method == "OPTIONS":
-            logger.debug("OPTIONS request - allowing through")
-            return f(*args, **kwargs)
-
-        token = None
-
-        # Check for token in Authorization header
-        if "Authorization" in request.headers:
-            auth_header = request.headers["Authorization"]
-            logger.debug(f"Authorization header found: {auth_header[:20]}...")
-            try:
-                token = auth_header.split(" ")[1]  # Bearer <token>
-                logger.debug(f"Extracted token: {token[:20]}...")
-            except IndexError:
-                logger.error("Token format invalid - could not split")
-                return jsonify({"error": "Token format invalid"}), 401
-        else:
-            logger.warning("No Authorization header found in request")
-            logger.debug(f"Request headers: {dict(request.headers)}")
-
-        if not token:
-            logger.error("Token is missing from request")
-            return jsonify({"error": "Token is missing"}), 401
-
-        try:
-            from app.config import SECRET_KEY
-
-            logger.debug("Attempting to decode token with secret key")
-            data = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-            current_user = data["user_id"]
-            logger.info(f"Token decoded successfully for user: {current_user}")
-        except jwt.ExpiredSignatureError:
-            logger.error("Token has expired")
-            return jsonify({"error": "Token has expired"}), 401
-        except jwt.InvalidTokenError as e:
-            logger.error(f"Token is invalid: {str(e)}")
-            return jsonify({"error": "Token is invalid"}), 401
-
-        return f(current_user, *args, **kwargs)
-
-    return decorated
 
 
 @auth_bp.route("/register", methods=["POST"])
 def register():
     """Register a new user (requires admin approval)"""
     try:
-        availability_service = get_services()
         data = request.get_json()
 
         if not data or not data.get("email") or not data.get("password"):
@@ -93,7 +39,7 @@ def register():
             )
 
         # Check if user already exists
-        existing_user = availability_service.get_user_by_email(email)
+        existing_user = user_service.get_user_by_email(email)
         if existing_user:
             return jsonify({"error": "An account with this email already exists"}), 409
 
@@ -101,14 +47,14 @@ def register():
         user_id = f"user_{email.split('@')[0]}"
 
         # Check if user_id is unique
-        if availability_service.get_user_by_id(user_id):
+        if user_service.get_user_by_id(user_id):
             # If not unique, add timestamp
             import time
 
             user_id = f"user_{email.split('@')[0]}_{int(time.time())}"
 
         # Create user (unapproved by default)
-        user = availability_service.create_user(
+        user = user_service.create_user(
             email=email, password_hash=generate_password_hash(password), user_id=user_id
         )
 
@@ -131,9 +77,6 @@ def register():
 def login():
     """Login and get JWT token (only for approved users)"""
     try:
-        availability_service = get_services()
-        from app.config import JWT_EXPIRATION_HOURS, SECRET_KEY
-
         data = request.get_json()
 
         logger.info(f"Login attempt for email: {data.get('email') if data else 'None'}")
@@ -146,7 +89,7 @@ def login():
         password = data["password"]
 
         # Authenticate user (checks approval status)
-        user_info = availability_service.authenticate_user(email, password)
+        user_info = user_service.authenticate_user(email, password)
 
         if not user_info:
             logger.warning(
@@ -195,9 +138,8 @@ def login():
 def get_current_user(current_user):
     """Get current user information"""
     try:
-        availability_service = get_services()
         logger.info(f"Getting current user info for: {current_user}")
-        user = availability_service.get_user_by_id(current_user)
+        user = user_service.get_user_by_id(current_user)
         if not user:
             logger.error(f"User not found: {current_user}")
             return jsonify({"error": "User not found"}), 404
@@ -226,13 +168,12 @@ def get_current_user(current_user):
 def update_profile(current_user):
     """Update user profile information"""
     try:
-        availability_service = get_services()
         data = request.get_json()
 
         if not data:
             return jsonify({"error": "No data provided"}), 400
 
-        user = availability_service.update_user_profile(
+        user = user_service.update_user_profile(
             user_id=current_user, email=data.get("email")
         )
 
@@ -266,7 +207,6 @@ def update_profile(current_user):
 def update_password(current_user):
     """Update user password"""
     try:
-        availability_service = get_services()
         data = request.get_json()
 
         if not data or not data.get("current_password") or not data.get("new_password"):
@@ -275,7 +215,7 @@ def update_password(current_user):
                 400,
             )
 
-        user = availability_service.update_user_password(
+        user = user_service.update_user_password(
             user_id=current_user,
             current_password=data["current_password"],
             new_password=data["new_password"],

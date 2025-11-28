@@ -22,11 +22,14 @@ interface Address {
   timezone?: string
 }
 
-function formatAddress(addressJson: string | undefined): string {
-  if (!addressJson) return 'No address available'
+function formatAddress(addressData: string | Address | undefined): string {
+  if (!addressData) return 'No address available'
 
   try {
-    const address: Address = JSON.parse(addressJson)
+    // Handle both string (JSON) and object (JSONB) formats
+    const address: Address = typeof addressData === 'string'
+      ? JSON.parse(addressData)
+      : addressData
 
     const parts = []
     if (address.street) parts.push(address.street)
@@ -39,7 +42,7 @@ function formatAddress(addressJson: string | undefined): string {
 
     return parts.length > 0 ? parts.join(', ') : 'No address available'
   } catch {
-    return addressJson // Fallback to raw string if parsing fails
+    return 'No address available' // Fallback if parsing fails
   }
 }
 
@@ -117,23 +120,10 @@ export function LocationsPage() {
           </p>
         </div>
         {isAuthenticated && (
-          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-            <Dialog.Trigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Location
-              </Button>
-            </Dialog.Trigger>
-            <Dialog.Content>
-              <Dialog.Header>
-                <Dialog.Title>Add New Location</Dialog.Title>
-                <Dialog.Description>
-                  Enter the location slug or full Playtomic URL to add a new padel court location
-                </Dialog.Description>
-              </Dialog.Header>
-              <AddLocationForm onSuccess={() => setIsModalOpen(false)} />
-            </Dialog.Content>
-          </Dialog>
+          <Button onClick={() => setIsModalOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Location
+          </Button>
         )}
       </div>
 
@@ -149,23 +139,10 @@ export function LocationsPage() {
               }
             </p>
             {isAuthenticated && (
-              <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <Dialog.Trigger asChild>
-                  <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Location
-                  </Button>
-                </Dialog.Trigger>
-                <Dialog.Content>
-                  <Dialog.Header>
-                    <Dialog.Title>Add New Location</Dialog.Title>
-                    <Dialog.Description>
-                      Enter the location slug or full Playtomic URL to add a new padel court location
-                    </Dialog.Description>
-                  </Dialog.Header>
-                  <AddLocationForm onSuccess={() => setIsModalOpen(false)} />
-                </Dialog.Content>
-              </Dialog>
+              <Button onClick={() => setIsModalOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Location
+              </Button>
             )}
           </CardContent>
         </Card>
@@ -250,6 +227,20 @@ export function LocationsPage() {
             )
           })}
         </div>
+      )}
+
+      {isAuthenticated && (
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <Dialog.Content>
+            <Dialog.Header>
+              <Dialog.Title>Add New Location</Dialog.Title>
+              <Dialog.Description>
+                Enter the location slug or full Playtomic URL to add a new padel court location
+              </Dialog.Description>
+            </Dialog.Header>
+            <AddLocationForm onSuccess={() => setIsModalOpen(false)} />
+          </Dialog.Content>
+        </Dialog>
       )}
     </div>
   )

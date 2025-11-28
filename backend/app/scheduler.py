@@ -3,16 +3,16 @@ Scheduler for background tasks in Padel Watcher
 """
 
 import atexit
-import json
 import logging
 from datetime import UTC, datetime
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
-from app.courtfinder.padelmate import PadelMateService
 from app.email_service import email_service
-from app.services import AvailabilityService
+from app.routes.search import perform_court_search
+from app.services.search_order_service import search_order_service
+from app.services.user_service import user_service
 
 logger = logging.getLogger(__name__)
 
@@ -32,179 +32,113 @@ def execute_search_order_task(order_id):
     Args:
         order_id: ID of the SearchOrder to execute
     """
-    from sqlalchemy import and_
-
-    from app.models import Availability, Court, Location, SearchOrder, User
-
     try:
         logger.info(f"[SCHEDULER] Executing search order {order_id}")
 
-        # Get fresh service instances for this task
-        task_service = AvailabilityService()
-        task_padel_service = PadelMateService()
-
         # Get the search order
-        order = (
-            task_service.session.query(SearchOrder)
-            .filter(SearchOrder.id == order_id)
-            .first()
-        )
+        search_order = search_order_service.get_search_order(order_id)
 
-        if not order or not order.is_active:
+        if not search_order or not search_order.is_active:
             logger.info(
                 f"[SCHEDULER] Search order {order_id} is not active or not found"
             )
             return
 
-        # Parse location IDs
-        location_ids = json.loads(order.location_ids)
-
-        # Get location details
-        locations = (
-            task_service.session.query(Location)
-            .filter(Location.id.in_(location_ids))
-            .all()
+        # Execute the search using the unified search function (force live data)
+        results = perform_court_search(
+            search_date=search_order.date,
+            start_time=search_order.start_time,
+            end_time=search_order.end_time,
+            duration_minutes=search_order.duration_minutes,
+            court_type=search_order.court_type,
+            court_config=search_order.court_config,
+            location_ids=search_order.location_ids,
+            force_live=True,
         )
 
-        if not locations:
-            logger.warning(
-                f"[SCHEDULER] No valid locations found for search order {order_id}"
-            )
-            return
-
-        all_courts = []
-
-        # Execute live search for each location
-        for location in locations:
-            logger.info(
-                f"[SCHEDULER] Searching location: {location.name} (slug: {location.slug})"
-            )
-
-            try:
-                # Fetch fresh availability data from the booking platform (FORCE LIVE)
-                slots_fetched = task_padel_service.fetch_and_store_availability(
-                    location_id=location.id,
-                    date_str=order.date.strftime("%Y-%m-%d"),
-                    sport_id="PADEL",
-                )
-                logger.info(
-                    f"[SCHEDULER] Fetched {slots_fetched} slots for {location.name}"
-                )
-
-                # Query the database for availabilities that match our criteria
-                availabilities = (
-                    task_service.session.query(Availability)
-                    .join(Court)
-                    .filter(
-                        and_(
-                            Availability.date == order.date,
-                            Availability.start_time >= order.start_time,
-                            Availability.start_time <= order.end_time,
-                            Availability.duration == order.duration_minutes,
-                            Court.location_id == location.id,
-                            Availability.available,
-                        )
-                    )
-                    .all()
-                )
-
-                logger.info(
-                    f"[SCHEDULER] Found {len(availabilities)} matching availabilities for {location.name}"
-                )
-
-                # Filter by court type and config
-                for avail in availabilities:
-                    court = (
-                        task_service.session.query(Court)
-                        .filter(Court.id == avail.court_id)
-                        .first()
-                    )
-
-                    # Check court type filter
-                    if order.court_type != "all" and court:
-                        if order.court_type == "indoor" and not court.indoor:
-                            continue
-                        if order.court_type == "outdoor" and court.indoor:
-                            continue
-
-                    # Check court config filter
-                    if order.court_config != "all" and court:
-                        if order.court_config == "single" and court.double:
-                            continue
-                        if order.court_config == "double" and not court.double:
-                            continue
-
-                    all_courts.append(
-                        {
-                            "location": location.name,
-                            "court": court.name if court else avail.court_id,
-                            "date": str(avail.date),
-                            "timeslot": f"{avail.start_time.strftime('%H:%M')}-{avail.end_time.strftime('%H:%M')}",
-                            "price": avail.price,
-                            "provider": "PadelMate",
-                        }
-                    )
-
-            except Exception as e:
-                logger.error(
-                    f"[SCHEDULER] Error searching location {location.name}: {str(e)}"
-                )
-                continue
-
         # Update last_check_at
-        order.last_check_at = datetime.now(UTC)
-        task_service.session.commit()
+        search_order_service.update_search_order_last_check(order_id)
 
         logger.info(
-            f"[SCHEDULER] Search order {order_id} completed: {len(all_courts)} courts found"
+            f"[SCHEDULER] Search order {order_id} completed: {len(results)} locations found"
         )
 
         # Send email notification if courts were found
-        if len(all_courts) > 0:
+        if len(results) > 0:
             logger.info(
-                f"🎾 [SCHEDULER] COURTS FOUND for order {order_id}! Sending notification to user {order.user_id}"
+                f"🎾 [SCHEDULER] COURTS FOUND for order {order_id}! Sending notification to user {search_order.user_id}"
             )
 
             # Get user email
-            user = (
-                task_service.session.query(User)
-                .filter(User.user_id == order.user_id)
-                .first()
-            )
+            order_user = user_service.get_user_by_id(search_order.user_id)
 
-            if user and user.email:
+            if order_user and order_user.email:
                 # Prepare search parameters for email
+                unique_locations = set()
+                for result in results:
+                    location = result.get("location", {})
+                    if location.get("name"):
+                        unique_locations.add(location.get("name"))
+
                 search_params = {
-                    "date": str(order.date),
-                    "start_time": str(order.start_time),
-                    "end_time": str(order.end_time),
-                    "duration_minutes": order.duration_minutes,
-                    "court_type": order.court_type,
-                    "court_config": order.court_config,
-                    "locations": [loc.name for loc in locations],
+                    "date": str(search_order.date),
+                    "start_time": str(search_order.start_time),
+                    "end_time": str(search_order.end_time),
+                    "duration_minutes": search_order.duration_minutes,
+                    "court_type": search_order.court_type,
+                    "court_config": search_order.court_config,
+                    "locations": list(unique_locations),
                 }
+
+                # Convert results to courts_found format for email (limit to 5 courts)
+                courts_found = []
+                for result in results:
+                    for court_data in result.get("courts", []):
+                        court = court_data.get("court", {})
+                        location = result.get("location", {})
+                        for avail in court_data.get("availabilities", []):
+                            courts_found.append(
+                                {
+                                    "location": location.get("name", "Unknown"),
+                                    "court": court.get("name", "Unknown"),
+                                    "date": avail.get("date", ""),
+                                    "timeslot": f"{avail.get('start_time', '')}-{avail.get('end_time', '')}",
+                                    "price": avail.get("price", "N/A"),
+                                    "provider": "PadelMate",
+                                }
+                            )
+                            if len(courts_found) >= 5:
+                                break
+                        if len(courts_found) >= 5:
+                            break
+                    if len(courts_found) >= 5:
+                        break
+
+                # Add search URL for the button
+                search_url = f"{email_service.frontend_base_url}/search-results?date={search_order.date.strftime('%d/%m/%Y')}&start_time={search_order.start_time.strftime('%H:%M')}&end_time={search_order.end_time.strftime('%H:%M')}&duration_minutes={search_order.duration_minutes}&court_type={search_order.court_type}&court_config={search_order.court_config}&location_ids={','.join(map(str, search_order.location_ids))}&live_search=true"
+                search_params["search_url"] = search_url
 
                 # Send email notification
                 email_sent = email_service.send_court_found_notification(
-                    recipient_email=user.email,
-                    recipient_name=user.email.split("@")[0],
-                    search_order_id=order.id,
-                    courts_found=all_courts,
+                    recipient_email=order_user.email,
+                    recipient_name=order_user.email.split("@")[0],
+                    search_order_id=order_id,
+                    courts_found=courts_found,
                     search_params=search_params,
                 )
 
                 if email_sent:
                     logger.info(
-                        f"[SCHEDULER] Email notification sent successfully to {user.email}"
+                        f"[SCHEDULER] Email notification sent successfully to {order_user.email}"
                     )
                 else:
                     logger.error(
-                        f"[SCHEDULER] Failed to send email notification to {user.email}"
+                        f"[SCHEDULER] Failed to send email notification to {order_user.email}"
                     )
             else:
-                logger.warning(f"[SCHEDULER] No email found for user {order.user_id}")
-
-        task_service.session.close()
+                logger.warning(
+                    f"[SCHEDULER] No email found for user {search_order.user_id}"
+                )
 
     except Exception as e:
         logger.error(f"[SCHEDULER] Error executing search order {order_id}: {str(e)}")
@@ -218,18 +152,12 @@ def check_active_search_orders():
     logger.info("[SCHEDULER] Checking for active search orders...")
 
     try:
-        # Get fresh service instance
-        scheduler_service = AvailabilityService()
-
         # Get all active search orders for today or future dates
         today = datetime.now(UTC).date()
-        from app.models import SearchOrder
+        active_orders = search_order_service.get_active_search_orders()
 
-        active_orders = (
-            scheduler_service.session.query(SearchOrder)
-            .filter(SearchOrder.is_active, SearchOrder.date >= today)
-            .all()
-        )
+        # Filter for orders on today or future dates
+        active_orders = [order for order in active_orders if order.date >= today]
 
         logger.info(f"[SCHEDULER] Found {len(active_orders)} active search orders")
 
@@ -237,7 +165,6 @@ def check_active_search_orders():
             # Execute each order in a separate task
             execute_search_order_task(order.id)
 
-        scheduler_service.session.close()
         logger.info("[SCHEDULER] Search cycle completed")
 
     except Exception as e:

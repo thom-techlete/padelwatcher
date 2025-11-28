@@ -8,8 +8,8 @@ export const locationApi = {
   getById: (id: number) =>
     apiClient.get<Location>(`/api/locations/${id}`),
 
-  create: (slug: string) =>
-    apiClient.post<Location>('/api/locations', { slug }),
+  create: (slug: string, provider: string) =>
+    apiClient.post<Location>('/api/locations', { slug, provider }),
 
   getCourts: (locationId: number) =>
     apiClient.get<{ courts: Court[] }>(`/api/locations/${locationId}/courts`).then(res => res.courts),

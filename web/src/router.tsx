@@ -7,7 +7,7 @@ import { AdminPage } from '@/pages/admin'
 import { LocationsPage } from '@/pages/locations'
 import { CourtsPage } from '@/pages/courts'
 import { SearchOrdersPage, CreateSearchOrderPage } from '@/pages/search-orders'
-import { SearchPage, SearchResultsPage } from '@/pages/public'
+import { SearchPage, SearchResultsPage } from '@/pages/search'
 import { ProfilePage } from '@/pages/profile/ProfilePage'
 import { tokenStorage } from '@/lib/auth'
 import { AuthProvider } from '@/contexts'
@@ -120,12 +120,22 @@ const locationsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/locations',
   component: LocationsPage,
+  beforeLoad: () => {
+    if (!tokenStorage.exists()) {
+      throw redirect({ to: '/login' })
+    }
+  },
 })
 
 const courtsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/courts',
   component: CourtsPage,
+  beforeLoad: () => {
+    if (!tokenStorage.exists()) {
+      throw redirect({ to: '/login' })
+    }
+  },
 })
 
 const settingsRoute = createRoute({

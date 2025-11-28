@@ -1,36 +1,29 @@
 """Locations routes blueprint"""
 
 import logging
-from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 
+from app.routes.auth import token_required
+from app.services.court_service import court_service
+from app.services.location_service import location_service
+from app.services.user_service import user_service
+from app.utils import (
+    get_provider,
+    serialize_models,
+    validate_request_fields,
+)
+
 locations_bp = Blueprint("locations", __name__, url_prefix="/api/locations")
 logger = logging.getLogger(__name__)
-
-
-def get_services():
-    """Import services here to avoid circular imports"""
-    from app.courtfinder.padelmate import PadelMateService
-    from app.services import AvailabilityService
-
-    return AvailabilityService(), PadelMateService()
-
-
-def token_required(f):
-    """Import from auth module"""
-    from app.routes.auth import token_required as auth_token_required
-
-    return auth_token_required(f)
 
 
 @locations_bp.route("", methods=["GET"])
 def get_locations():
     """Get all available locations/clubs"""
     try:
-        _, padel_service = get_services()
-        locations = padel_service.get_all_clubs()
-        return jsonify({"locations": locations}), 200
+        locations = location_service.get_all_locations()
+        return jsonify({"locations": serialize_models(locations)}), 200
     except Exception as e:
         logger.error(f"Error getting locations: {str(e)}")
         return jsonify({"error": str(e)}), 400
@@ -38,19 +31,13 @@ def get_locations():
 
 @locations_bp.route("", methods=["POST"])
 @token_required
+@validate_request_fields(["slug", "provider"])
 def add_location(current_user):
     """Add a new location by slug"""
     try:
-        _, padel_service = get_services()
         data = request.get_json()
-
-        if not data or not data.get("slug"):
-            return jsonify({"error": "Slug is required"}), 400
-
-        location = padel_service.add_location_by_slug(
-            slug=data["slug"],
-            date_str=data.get("date", datetime.now().strftime("%Y-%m-%d")),
-        )
+        provider = get_provider(data["provider"])
+        location = provider.add_location_by_slug(slug=data["slug"])
         return (
             jsonify(
                 {
@@ -74,9 +61,8 @@ def add_location(current_user):
 def get_location_courts(location_id):
     """Get all courts for a specific location"""
     try:
-        _, padel_service = get_services()
-        courts = padel_service.get_courts_for_location(location_id)
-        return jsonify({"courts": courts}), 200
+        courts = court_service.get_courts_by_location(location_id)
+        return jsonify({"courts": serialize_models(courts)}), 200
     except Exception as e:
         logger.error(f"Error getting location courts: {str(e)}")
         return jsonify({"error": str(e)}), 400
@@ -87,14 +73,12 @@ def get_location_courts(location_id):
 def delete_location(current_user, location_id):
     """Delete a location (admin only)"""
     try:
-        availability_service, _ = get_services()
-
         # Check if user is admin
-        user = availability_service.get_user_by_id(current_user)
+        user = user_service.get_user_by_id(current_user)
         if not user or not user.is_admin:
             return jsonify({"error": "Admin access required"}), 403
 
-        if availability_service.delete_location(location_id):
+        if location_service.delete_location(location_id):
             return jsonify({"message": "Location deleted successfully"}), 200
         else:
             return jsonify({"error": "Location not found"}), 404

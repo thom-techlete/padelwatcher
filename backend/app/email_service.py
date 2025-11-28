@@ -148,12 +148,30 @@ Padel Watcher Team
 
         courts_html = ""
         for court in courts_found:
+            booking_url = court.get("booking_url")
+            booking_button = ""
+            if booking_url:
+                booking_button = f"""
+                <a href="{booking_url}"
+                   style="display: inline-block;
+                          background-color: #059669;
+                          color: white;
+                          padding: 6px 12px;
+                          text-decoration: none;
+                          border-radius: 4px;
+                          font-size: 12px;
+                          font-weight: 600;">
+                    Book Now
+                </a>
+                """
+
             courts_html += f"""
             <tr style="border-bottom: 1px solid #e5e7eb;">
                 <td style="padding: 12px; font-weight: 500;">{court.get('location', 'Unknown')}</td>
                 <td style="padding: 12px;">{court.get('court', 'Unknown Court')}</td>
                 <td style="padding: 12px;">{court.get('timeslot', 'N/A')}</td>
                 <td style="padding: 12px; font-weight: 600; color: #059669;">{court.get('price', 'N/A')}</td>
+                <td style="padding: 12px; text-align: center;">{booking_button}</td>
             </tr>
             """
 
@@ -210,6 +228,7 @@ Padel Watcher Team
                         <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151;">Court</th>
                         <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151;">Time</th>
                         <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151;">Price</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600; color: #374151;">Action</th>
                     </tr>
                 </thead>
                 <tbody>
