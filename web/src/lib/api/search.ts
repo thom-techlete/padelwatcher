@@ -1,9 +1,19 @@
 import { apiClient } from './client'
-import type { SearchRequest, SearchResult, SearchOrder } from '@/types'
+import type { SearchRequest, SearchResult, SearchOrder, SearchTask, SearchTaskStartResponse } from '@/types'
 
 export const searchApi = {
   searchAvailable: (params: SearchRequest) =>
     apiClient.post<SearchResult>('/api/search/available', params),
+
+  // Background task-based search
+  startSearchTask: (params: SearchRequest) =>
+    apiClient.post<SearchTaskStartResponse>('/api/tasks/search/start', params),
+
+  getSearchTaskStatus: (taskId: string) =>
+    apiClient.get<SearchTask>(`/api/tasks/search/${taskId}`),
+
+  cancelSearchTask: (taskId: string) =>
+    apiClient.post<{ message: string; task_id: string }>(`/api/tasks/search/${taskId}/cancel`),
 
   createOrder: (data: Omit<SearchOrder, 'id' | 'user_id' | 'created_at' | 'updated_at'>) =>
     apiClient.post<SearchOrder>('/api/search-orders', data),

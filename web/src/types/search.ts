@@ -57,9 +57,33 @@ export interface SearchResult {
         start_time: string
         end_time: string
         price?: number
+        booking_url?: string
       }>
     }>
   }>
   cached: boolean
   cache_timestamp?: string
+}
+
+// Background search task types
+export type SearchTaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+
+export interface SearchTask {
+  task_id: string
+  status: SearchTaskStatus
+  progress: number
+  current_step: string
+  total_locations: number
+  processed_locations: number
+  error_message?: string
+  results?: SearchResult
+  created_at?: string
+  started_at?: string
+  completed_at?: string
+}
+
+export interface SearchTaskStartResponse {
+  task_id: string
+  status: string
+  message: string
 }

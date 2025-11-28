@@ -1,10 +1,12 @@
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { useMutation } from '@tanstack/react-query'
 import { useSearch } from '@tanstack/react-router'
-import { Card, CardHeader, CardTitle, CardContent, Button, Spinner, Alert, Badge } from '@/components/ui'
-import { Search, Clock, MapPin, ArrowLeft, Euro, Zap, ExternalLink } from 'lucide-react'
+import { Card, CardHeader, CardTitle, CardContent, Button, Progress, Alert, Badge } from '@/components/ui'
+import { Search, Clock, MapPin, ArrowLeft, Euro, Zap, ExternalLink, XCircle, Loader2 } from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
 import { searchApi } from '@/lib/api'
 import { useAuth } from '@/contexts'
+import type { SearchTask, SearchResult } from '@/types'
 
 interface SearchParams {
   date: string
@@ -24,24 +26,37 @@ interface Address {
   postal_code?: string
 }
 
+type SearchState = 'idle' | 'starting' | 'polling' | 'completed' | 'failed' | 'cancelled'
+
 export function SearchResultsPage() {
   const navigate = useNavigate()
   const params = useSearch({ from: '/search-results' }) as SearchParams
   const { user } = useAuth()
 
-  const { data: results, isLoading, error } = useQuery({
-    queryKey: ['search-results', params],
-    queryFn: async () => {
+  // State for task-based search
+  const [searchState, setSearchState] = useState<SearchState>('idle')
+  const [taskId, setTaskId] = useState<string | null>(null)
+  const [taskStatus, setTaskStatus] = useState<SearchTask | null>(null)
+  const [results, setResults] = useState<SearchResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  // Polling interval reference
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Track if search has been initiated to avoid re-triggering
+  const searchInitiatedRef = useRef(false)
+
+  // Start search task mutation
+  const startTaskMutation = useMutation({
+    mutationFn: async () => {
       const locationIds = params.location_ids
         ? params.location_ids.split(',').map(Number).filter(id => !isNaN(id))
         : undefined
 
       const courtType = (params.court_type || 'all') as 'all' | 'indoor' | 'outdoor'
       const courtConfig = (params.court_config || 'all') as 'all' | 'single' | 'double'
-      const liveSearch = params.live_search === 'true'
       const forceLiveSearch = params.force_live_search === 'true'
 
-      const searchData = {
+      return await searchApi.startSearchTask({
         date: params.date,
         start_time: params.start_time,
         end_time: params.end_time,
@@ -49,14 +64,95 @@ export function SearchResultsPage() {
         court_type: courtType,
         court_config: courtConfig,
         location_ids: locationIds,
-        live_search: liveSearch,
         force_live_search: forceLiveSearch,
-      }
-
-      return await searchApi.searchAvailable(searchData)
+      })
     },
-    enabled: !!params.date,
+    onSuccess: (data) => {
+      setTaskId(data.task_id)
+      setSearchState('polling')
+    },
+    onError: (err: Error) => {
+      setError(err.message)
+      setSearchState('failed')
+    },
   })
+
+  // Cancel task mutation
+  const cancelTaskMutation = useMutation({
+    mutationFn: async () => {
+      if (!taskId) throw new Error('No task to cancel')
+      return await searchApi.cancelSearchTask(taskId)
+    },
+    onSuccess: () => {
+      setSearchState('cancelled')
+      stopPolling()
+    },
+  })
+
+  // Stop polling
+  const stopPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current)
+      pollingIntervalRef.current = null
+    }
+  }, [])
+
+  // Poll for task status
+  const pollTaskStatus = useCallback(async () => {
+    if (!taskId) return
+
+    try {
+      const status = await searchApi.getSearchTaskStatus(taskId)
+      setTaskStatus(status)
+
+      if (status.status === 'completed' && status.results) {
+        setResults(status.results)
+        setSearchState('completed')
+        stopPolling()
+      } else if (status.status === 'failed') {
+        setError(status.error_message || 'Search failed')
+        setSearchState('failed')
+        stopPolling()
+      } else if (status.status === 'cancelled') {
+        setSearchState('cancelled')
+        stopPolling()
+      }
+    } catch (err) {
+      console.error('Error polling task status:', err)
+    }
+  }, [taskId, stopPolling])
+
+  // Start polling when we have a task ID
+  useEffect(() => {
+    if (searchState === 'polling' && taskId) {
+      // Set up polling interval (every 500ms for responsive updates)
+      // The first poll happens via setTimeout to avoid synchronous setState
+      const initialPollTimeout = setTimeout(pollTaskStatus, 0)
+      pollingIntervalRef.current = setInterval(pollTaskStatus, 200)
+
+      return () => {
+        clearTimeout(initialPollTimeout)
+        stopPolling()
+      }
+    }
+  }, [searchState, taskId, pollTaskStatus, stopPolling])
+
+  // Start search when page loads
+  useEffect(() => {
+    if (params.date && !searchInitiatedRef.current) {
+      searchInitiatedRef.current = true
+      // Use setTimeout to avoid synchronous setState in effect
+      setTimeout(() => {
+        setSearchState('starting')
+        startTaskMutation.mutate()
+      }, 0)
+    }
+  }, [params.date, startTaskMutation])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => stopPolling()
+  }, [stopPolling])
 
   // Helper function to format address from JSON or object
   const formatAddress = (address: string | Address) => {
@@ -101,18 +197,83 @@ export function SearchResultsPage() {
     }
   }
 
+  function calculateDuration(start_time: string, end_time: string): string {
+    try {
+      const start = new Date(`2000-01-01T${start_time}`)
+      const end = new Date(`2000-01-01T${end_time}`)
+      const diffMs = end.getTime() - start.getTime()
+      const diffMinutes = Math.floor(diffMs / (1000 * 60))
+      return `${diffMinutes} min`
+    } catch {
+      return 'Unknown'
+    }
+  }
 
-  if (isLoading) {
+  // Render loading/progress state
+  if (searchState === 'starting' || searchState === 'polling') {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-center">
-          <Spinner />
+        <div className="mb-8">
+          <Button
+            variant="ghost"
+            onClick={() => navigate({ to: '/search' })}
+            className="mb-4"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Search
+          </Button>
+          <h1 className="text-3xl font-bold text-white">Searching Courts</h1>
+          <p className="text-white/80 mt-2">
+            {formatDate(params.date)}
+          </p>
         </div>
+
+        <Card className="max-w-2xl mx-auto">
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin text-accent-400" />
+              Searching for available courts...
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <Progress
+              value={taskStatus?.progress || 0}
+              showLabel
+              label={taskStatus?.current_step || 'Initializing search...'}
+              size="lg"
+              variant="accent"
+            />
+
+            {taskStatus && taskStatus.total_locations > 0 && (
+              <div className="flex justify-between text-sm text-white/70">
+                <span>
+                  Processing location {taskStatus.processed_locations} of {taskStatus.total_locations}
+                </span>
+                <span>
+                  {Math.round((taskStatus.processed_locations / taskStatus.total_locations) * 100)}% complete
+                </span>
+              </div>
+            )}
+
+            <div className="flex justify-center pt-4">
+              <Button
+                variant="outline"
+                onClick={() => cancelTaskMutation.mutate()}
+                disabled={cancelTaskMutation.isPending}
+                className="text-red-400 border-red-400/50 hover:bg-red-400/10"
+              >
+                <XCircle className="mr-2 h-4 w-4" />
+                Cancel Search
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
-  if (error) {
+  // Render error state
+  if (searchState === 'failed' || error) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
@@ -126,32 +287,59 @@ export function SearchResultsPage() {
           </Button>
         </div>
         <Alert variant="error">
-          Search failed: {error.message}
+          Search failed: {error || 'An unknown error occurred'}
         </Alert>
+        <div className="mt-4 flex justify-center">
+          <Button onClick={() => {
+            setError(null)
+            setSearchState('idle')
+            setTaskId(null)
+            setTaskStatus(null)
+          }}>
+            Try Again
+          </Button>
+        </div>
       </div>
     )
   }
 
-  // Calculate total courts and slots from the API response
+  // Render cancelled state
+  if (searchState === 'cancelled') {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <Button
+            variant="ghost"
+            onClick={() => navigate({ to: '/search' })}
+            className="mb-4"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Search
+          </Button>
+        </div>
+        <Card className="max-w-2xl mx-auto">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <XCircle className="h-12 w-12 text-yellow-400 mb-4" />
+            <h3 className="text-lg font-medium text-white mb-2">Search Cancelled</h3>
+            <p className="text-white/70 text-center mb-6">
+              The search was cancelled before completion.
+            </p>
+            <Button onClick={() => navigate({ to: '/search', search: params })}>
+              Start New Search
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Calculate total courts and slots from the results
   const totalCourts = results?.locations?.reduce((sum, loc) => sum + loc.courts.length, 0) || 0
   const totalSlots = results?.locations?.reduce((sum, loc) =>
     sum + loc.courts.reduce((courtSum, court) => courtSum + court.availabilities.length, 0), 0
   ) || 0
 
-  function calculateDuration(start_time: string, end_time: string): string {
-    try {
-      const start = new Date(`2000-01-01T${start_time}`)
-      const end = new Date(`2000-01-01T${end_time}`)
-      const diffMs = end.getTime() - start.getTime()
-      const diffMinutes = Math.floor(diffMs / (1000 * 60))
-      return `${diffMinutes} min`
-    } catch {
-      return 'Unknown'
-    }
-  }
-
-  console.log('Search Results:', results)
-
+  // Render results
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
@@ -170,7 +358,7 @@ export function SearchResultsPage() {
             <Button
               variant="outline"
               onClick={() => navigate({
-                to: '/search',
+                to: '/search-results',
                 search: {
                   ...params,
                   force_live_search: 'true'

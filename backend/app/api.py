@@ -20,6 +20,7 @@ from app.routes.auth import auth_bp
 from app.routes.locations import locations_bp
 from app.routes.search import search_bp
 from app.routes.search_orders import search_orders_bp
+from app.routes.tasks import tasks_bp
 from app.services import AvailabilityService
 
 # Configure logging
@@ -46,6 +47,7 @@ app.register_blueprint(locations_bp)
 app.register_blueprint(search_bp)
 app.register_blueprint(search_orders_bp)
 app.register_blueprint(admin_bp)
+app.register_blueprint(tasks_bp)
 
 
 # Error handlers

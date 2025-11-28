@@ -164,6 +164,38 @@ class User(Base):
     approved_by = Column(String)  # user_id of admin who approved
 
 
+class SearchTask(Base):
+    """Background task for search operations with progress tracking"""
+
+    __tablename__ = "search_tasks"
+    model_config = ConfigDict(from_attributes=True)
+
+    id = Column(Integer, primary_key=True)
+    task_id = Column(
+        String, unique=True, nullable=False
+    )  # UUID for task identification
+    user_id = Column(String, nullable=False)
+    status = Column(
+        String, default="pending"
+    )  # pending, running, completed, failed, cancelled
+    progress = Column(Integer, default=0)  # 0-100 percentage
+    current_step = Column(String)  # Description of current step
+    total_locations = Column(Integer, default=0)
+    processed_locations = Column(Integer, default=0)
+
+    # Search parameters stored as JSON
+    search_params = Column(JSONB, nullable=False)
+
+    # Results stored as JSON when completed
+    results = Column(JSONB)
+    error_message = Column(String)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    started_at = Column(DateTime)
+    completed_at = Column(DateTime)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 # Legacy DTOs - kept for backward compatibility but not recommended
 # Best practice: Use database models directly, serialize using model.model_dump()
 # API routes should handle JSON serialization/deserialization
